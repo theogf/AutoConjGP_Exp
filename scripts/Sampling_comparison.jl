@@ -2,7 +2,10 @@ using AugmentedGaussianProcesses
 using Plots
 using Turing
 using MCMCChains, Mamba
+using DrWatson
 
+quickactivate("/home/theo/experiments/AutoConj")
+include(joinpath(srcdir(),"intro.jl"))
 iterations = 1000
 N = 100
 σ = 1e-1
