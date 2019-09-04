@@ -4,32 +4,35 @@ using Plots
 using AugmentedGaussianProcesses
 using PDMats, LinearAlgebra
 
+@inline logistic(x) = inv.(1.0.+exp.(-x))
 
-@model basiclaplacemodel(x,y,β,L) = begin
+
+@model basicmaternmodel(x,y,ρ,L) = begin
     z ~ MvNormal(zeros(length(y)),I)
     f = L*z
     for i in 1:size(x,1)
-        y[i] ~ Laplace(f[i],β)
+        y[i] ~ Bernoulli(logistic(f[i]))
     end
 end
 
-iterations = 1000
+iterations = 5000
 burnin=1
-N = 300
+N = 100
 σ = 1.0
 X = sort(rand(N,1),dims=1)
 kernel = RBFKernel(0.1)
-K = kernelmatrix(X,kernel)+1e-4*I
+K = kernelmatrix(X,kernel)+1e-6*I
 L = Matrix(cholesky(K).L)
-y = rand(MvNormal(K+σ*I))
+true_f = rand(MvNormal(K))
+y = sign.(true_f+σ*randn(N))
+y_turing = (y.+1.0)./2
 p = scatter(X[:],y,lab="data")
-β = 2.0
 
 Turing.setadbackend(:reverse_diff)
 Turing.setadbackend(:forward_diff)
 
 # chain = sample(basiclaplacemodel(X,y,β,L),HMC(iterations,0.1,10))
-chain = sample(basiclaplacemodel(X,y,β,L),NUTS(iterations,200,0.9),progress=true)
+chain = sample(basiclogisticmodel(X,y_turing,L),NUTS(iterations,200,0.9),progress=true)
 amodel = VGP(X,y,RBFKernel(0.1),LaplaceLikelihood(β),GibbsSampling(samplefrequency=1,nBurnin=0),verbose=3,optimizer=false)
 train!(amodel,iterations=iterations+1)
 augchain = Chains(reshape(transpose(hcat(amodel.inference.sample_store[1]...)),iterations,:,1),string.("f[",1:N,"]"))
@@ -38,6 +41,7 @@ augchain = Chains(reshape(transpose(hcat(amodel.inference.sample_store[1]...)),i
 ##
 
 p = scatter(X[:],y,lab="data")
+plot!(X,true_f,lab="True f",color=4)
 Mchain = Array(chain)[burnin:end,:]
 mchain = L*vec(mean(Mchain,dims=1))
 vchain = diag(L*cov(Mchain)*L')
@@ -57,6 +61,7 @@ NNuts = size(chain,1)
 
 @progress for j in burnin:10:iterations
     p = scatter(X[:],y,lab="data")
+    Plots.plot!(X,true_f,lab="True f",color=4)
     Plots.plot!(vec(X),maugchain_final,lab="",color=:black,lw=3.0)
     Plots.plot!(vec(X),maugchain_final.+2*sqrt.(vaugchain_final),lw=2.0,linestyle=:dash,lab="",color=:black)
     Plots.plot!(vec(X),maugchain_final.-2*sqrt.(vaugchain_final),lw=2.0,linestyle=:dash,lab="",color=:black)
