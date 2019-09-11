@@ -34,7 +34,7 @@ NUTSchain = mapreduce(c->sample(laplacemodel(X,y,β,L),NUTS(nSamples,50,0.6),pro
 ## Training Gibbs Sampling
 
 GSsamples = zeros(nSamples,N,nChains)
-@show "Starting chains of Gibbs sampler"
+@info "Starting chains of Gibbs sampler"
 Distributed.@distributed for i in 1:nChains
     amodel = VGP(X,y,RBFKernel(0.1),LaplaceLikelihood(β),GibbsSampling(samplefrequency=1,nBurnin=0),verbose=0,optimizer=false)
     train!(amodel,iterations=nSamples+1)
@@ -49,4 +49,4 @@ mean(mean.(getindex.(heideldiag(NUTSchain),Symbol("Burn-in"))))
 mean(mean.(abs,getindex.(autocor(GSchain),Symbol("lag 1"))))
 mean(mean.(abs,getindex.(autocor(NUTSchain),Symbol("lag 1"))))
 println("Gelman: NUTS : $(mean(gelmandiag(NUTSchain)[:PSRF])), GibbsSampling : $(mean(gelmandiag(GSchain)[:PSRF]))")
-println("Gelman: NUTS : $(mean(mean.(getindex.(heideldiag(NUTSchain),Symbol("Burn-in"))))), GibbsSampling : $(mean(mean.(getindex.(heideldiag(GSchain),Symbol("Burn-in")))))")
+println("Heidel: NUTS : $(mean(mean.(getindex.(heideldiag(NUTSchain),Symbol("Burn-in"))))), GibbsSampling : $(mean(mean.(getindex.(heideldiag(GSchain),Symbol("Burn-in")))))")
