@@ -1,6 +1,6 @@
 using AugmentedGaussianProcesses; const AGP = AugmentedGaussianProcesses
 using Statistics, ForwardDiff
-using MLDataUtils, CSV, LinearAlgebra
+using MLDataUtils, CSV, LinearAlgebra, LaTeXStrings, SpecialFunctions
 using DrWatson
 quickactivate(joinpath(@__DIR__,".."))
 include(joinpath(srcdir(),"intro.jl"))
@@ -9,14 +9,17 @@ include(joinpath(srcdir(),"intro.jl"))
 nSamples = 100;
 nChains = 5;
 data = Matrix(CSV.read(joinpath(datadir(),"exp_raw/housing.csv"),header=false))
-y = data[:,1]; X = data[:,2:end]; (N,nDim) = size(X)
+pointsused = :;
+y = data[pointsused,1]; rescale!(y,obsim=1)
+X = data[pointsused,2:end]; (N,nDim) = size(X); rescale(X,obsdim=1)
 l = initial_lengthscale(X)
 
+##
 kernel = RBFKernel(l)
 K = AugmentedGaussianProcesses.kernelmatrix(X,kernel)+1e-4*I
 burnin=1
 ν = 10.0; likelihood = StudentTLikelihood(ν); noisegen = TDist(ν); lname="StudentT"
-likelihood = LaplaceLikelihood(); noisegen = Laplace(); lname = "Laplace";
+# likelihood = LaplaceLikelihood(); noisegen = Laplace(); lname = "Laplace";
 # likelihood = LogisticLikelihood(); noisegen = Normal(); lname = "Logistic"
 if lname == "Laplace"
     global b = 1.0
@@ -78,18 +81,20 @@ elseif lname == "StudentT"
 end
 
 
-nIter = 100
-mu = zeros(N,nIter)
-sigma = zeros(N,N,nIter)
+nIter = 50
+eta1 = zeros(N,nIter)
+eta2 = zeros(N,N,nIter)
 function cb(model,iter)
-    mu[:,iter+1] = model.μ[1]
-    sigma[:,:,iter+1] = model.Σ[1]
+    eta1[:,iter+1] = model.η₁[1]
+    eta2[:,:,iter+1] = model.η₂[1]
 end
 
+##
 
 amodel = VGP(X,y,RBFKernel(0.1),genlikelihood,AnalyticVI(),verbose=3,optimizer=false)
 train!(amodel,iterations=nIter,callback=cb)
 
+##
 varω = zeros(N)
 
 function varomega(c)
@@ -100,64 +105,63 @@ for (i,r) in enumerate(amodel.likelihood.c²[1])
     varω[i] = varomega(r)
 end
 
-diffmu = mu.-amodel.μ[1];
-diffsigma = sigma.-amodel.Σ[1];
-convergence_matrix_mu = 2*Diagonal(β(y))*Diagonal(varω)*Diagonal(amodel.μ[1])*amodel.Σ[1];
-convergence_matrix_sigma = zeros(N,N,N);
-for i in 1:N, j in 1:N, k in 1:N
-    convergence_matrix_sigma[i,j,k] = 2*γ(y[i])*varω[i]*amodel.Σ[1][j,i]*(amodel.Σ[1][i,k]+amodel.μ[1][i]*amodel.μ[1][k])
+diffeta1 = eta1.-amodel.η₁[1];
+diffeta2 = eta2.-amodel.η₂[1];
+convergence_matrix_eta1 = 2*Diagonal(β(y))*Diagonal(varω)*Diagonal(amodel.μ[1])*amodel.Σ[1];
+convergence_matrix_eta2 = zeros(N,N,N);
+@progress for i in 1:N, j in 1:N, k in 1:N
+    convergence_matrix_eta2[i,j,k] = 2*γ(y[i])*varω[i]*amodel.Σ[1][j,i]*(amodel.Σ[1][i,k]+2*amodel.μ[1][i]*amodel.μ[1][k])
 end
 
-
-convergence_matrix_sigma = 2*kron(amodel.Σ[1]*(Diagonal(γ(y).*varω)),amodel.Σ[1]+amodel.μ[1]*transpose(amodel.μ[1]))
-
-eps_0_mu = diffmu[:,1]
-eps_tmax_mu = zeros(nIter);
-eps_tmean_mu = zeros(nIter);
-eps_0_sig = diffsigma[:,:,1]
-eps_tmax_sig = zeros(nIter);
-eps_tmean_sig = zeros(nIter);
+##
+eps_0_eta1 = diffeta1[:,1]
+eps_tmax_eta1 = zeros(nIter);
+eps_tmean_eta1 = zeros(nIter);
+eps_0_eta2 = diffeta2[:,:,1]
+eps_tmax_eta2 = zeros(nIter);
+eps_tmean_eta2 = zeros(nIter);
 for i in 1:nIter
-    eps_tmax_mu[i] = maximum(abs.(eps_0_mu))
-    eps_tmax_sig[i] = maximum(abs.(eps_0_sig))
-    eps_tmean_mu[i] = norm(eps_0_mu)
-    eps_tmean_sig[i] = norm(eps_0_sig)
-    global eps_0_mu = convergence_matrix_mu*eps_0_mu
-    eps_0_sig_old = copy(eps_0_sig)
+    i%10 == 0 ? @info("iteration $i") : nothing
+    eps_tmax_eta1[i] = maximum(abs.(eps_0_eta1))
+    eps_tmax_eta2[i] = maximum(abs.(eps_0_eta2))
+    eps_tmean_eta1[i] = norm(eps_0_eta1)
+    eps_tmean_eta2[i] = norm(eps_0_eta2)
+    global eps_0_eta1 = convergence_matrix_eta1*eps_0_eta1
+    eps_0_eta2_old = copy(eps_0_eta2)
     for j in 1:N, k in 1:N
-        eps_0_sig[j,k] = sum(convergence_matrix_mu[i,j,k]*eps_0_sig_old[j,k] for i in 1:N)
+        eps_0_eta2[j,k] = eps_0_eta2_old[j,k]*sum(convergence_matrix_eta2[:,j,k])
     end
 end
-lambda_mu = maximum(eigen(convergence_matrix).values);
+lambda_mu = maximum(eigen(convergence_matrix_eta1).values) |>display
+###
 
-
-
-using Plots
+using Plots; pyplot()
 ##
-maxdiffmu = maximum.(abs,eachcol(diffmu))
-maxdiffmu = maxdiffmu[maxdiffmu.!=0]
-p1 = plot(1:length(maxdiffmu),maxdiffmu,lab="Max Error mu",yaxis=:log)
-plot!(1:nIter,eps_tmax_mu,lab="Max Bound") |> display
+default(lw=3.0,legend=false)
+maxdiffeta1 = maximum.(abs,eachcol(diffeta1))
+maxdiffeta1 = maxdiffeta1[maxdiffeta1.!=0]
+p1 = plot(1:length(maxdiffeta1),maxdiffeta1,lab="Max Error eta 1",yaxis=:log,xlabel="t",ylabel=L"\max(|\eta_1^t-\eta_1^*|)")
+plot!(1:nIter,eps_tmax_eta1,lab="Max Bound")
+meandiffeta1 = norm.(eachcol(diffeta1))
+meandiffeta1 = meandiffeta1[meandiffeta1.!=0]
+p2 = plot(1:length(meandiffeta1),meandiffeta1,lab="Mean Error eta 1",yaxis=:log,xlabel="t",ylabel=L"||\eta_1^t-\eta_1^*||")
+plot!(1:nIter,eps_tmean_eta1,lab="Mean Bound")
 
-##
-meandiffmu = norm.(eachcol(diffmu))
-meandiffmu = meandiffmu[meandiffmu.!=0]
-p2 = plot(1:length(meandiffmu),meandiffmu,lab="Mean Error mu",yaxis=:log)
-plot!(1:nIter,eps_tmean_mu,lab="Mean Bound")
-
-plot(p1,p2)
+plot(p1,p2) |> display
 # plot!(1:nIter,maximum(eachcol(diffmu)),lab="Error sigma")
 
 ##
 
-maxdiffsig = maximum.(abs,[diffsig[:,:,i] for i in 1:nIter])
-maxdiffsig = maxdiffsig[maxdiffsig.!=0]
-p3 = plot(1:length(maxdiffmu),maxdiffmu,lab="Max Error sig",yaxis=:log)
-plot!(1:nIter,eps_tmax_sig),lab="Max Bound") |> display
+maxdiffeta2 = maximum.(abs,[diffeta2[:,:,i] for i in 1:nIter])
+maxdiffeta2 = maxdiffeta2[maxdiffeta2.!=0]
+p3 = plot(1:length(maxdiffeta2),maxdiffeta2,lab="Max Error eta 2",yaxis=:log,xlabel="t",ylabel=L"\max(|\eta_2^t-\eta_2^*|)")
+plot!(1:nIter,eps_tmax_eta2,lab="Max Bound")
+meandiffeta2 = norm.([diffeta2[:,:,i] for i in 1:nIter])
+meandiffeta2 = meandiffeta2[meandiffeta2.!=0]
+p4 = plot(1:length(meandiffeta2),meandiffeta2,lab="Mean Error eta 2",yaxis=:log,xlabel="t",ylabel=L"||\eta_2^t-\eta_2^*||")
+plot!(1:nIter,eps_tmean_eta2,lab="Mean Bound")
+plot(p3,p4) |> display
 
 ##
-meandiffsig = norm.([diffsig[:,:,i] for i in 1:nIter])
-meandiffsig = meandiffsig[meandiffsig.!=0]
-p4 = plot(1:length(meandiffsig),meandiffsig,lab="Mean Error sig",yaxis=:log)
-plot!(1:nIter,eps_tmean_sig,lab="Mean Bound")
-plot(p3,p4)
+plot(p1,p2,p3,p4) |> display
+savefig(joinpath(@__DIR__,"Convergence.png"))
