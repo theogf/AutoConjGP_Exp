@@ -10,8 +10,8 @@ nSamples = 100;
 nChains = 5;
 data = Matrix(CSV.read(joinpath(datadir(),"exp_raw/housing.csv"),header=false))
 pointsused = :;
-y = data[pointsused,1]; rescale!(y,obsim=1)
-X = data[pointsused,2:end]; (N,nDim) = size(X); rescale(X,obsdim=1)
+y = data[pointsused,1]; rescale!(y,obsdim=1)
+X = data[pointsused,2:end]; (N,nDim) = size(X); rescale!(X,obsdim=1)
 l = initial_lengthscale(X)
 
 ##
@@ -132,7 +132,9 @@ for i in 1:nIter
         eps_0_eta2[j,k] = eps_0_eta2_old[j,k]*sum(convergence_matrix_eta2[:,j,k])
     end
 end
-lambda_mu = maximum(eigen(convergence_matrix_eta1).values) |>display
+lambda_eta1_max = maximum(real.(eigen(convergence_matrix_eta1).values))
+lambda_eta1_min = minimum(real.(eigen(convergence_matrix_eta1).values))
+evol = lambda_eta1_min.^(1:10)
 ###
 
 using Plots; pyplot()
@@ -141,7 +143,9 @@ default(lw=3.0,legend=false)
 maxdiffeta1 = maximum.(abs,eachcol(diffeta1))
 maxdiffeta1 = maxdiffeta1[maxdiffeta1.!=0]
 p1 = plot(1:length(maxdiffeta1),maxdiffeta1,lab="Max Error eta 1",yaxis=:log,xlabel="t",ylabel=L"\max(|\eta_1^t-\eta_1^*|)")
-plot!(1:nIter,eps_tmax_eta1,lab="Max Bound")
+plot!(1:nIter,eps_tmax_eta1,lab="Max Expected Bound")
+plot!(1:nIter,x->lambda_eta1_max^x,lab="Upper bound")
+plot!(1:10,evol)
 meandiffeta1 = norm.(eachcol(diffeta1))
 meandiffeta1 = meandiffeta1[meandiffeta1.!=0]
 p2 = plot(1:length(meandiffeta1),meandiffeta1,lab="Mean Error eta 1",yaxis=:log,xlabel="t",ylabel=L"||\eta_1^t-\eta_1^*||")

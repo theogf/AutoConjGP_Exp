@@ -4,7 +4,6 @@ using Plots
 using AugmentedGaussianProcesses
 using PDMats, LinearAlgebra
 
-@inline logistic(x) = inv.(1.0.+exp.(-x))
 
 @model basiclogisticmodel(x,y,L) = begin
     z ~ MvNormal(zeros(length(y)),I)

@@ -2,9 +2,11 @@ using Turing, MCMCChains
 using AugmentedGaussianProcesses
 using MLDataUtils, CSV
 using DrWatson
+using StatsFuns
 quickactivate("/home/theo/experiments/AutoConj")
 include(joinpath(srcdir(),"intro.jl"))
 Turing.setadbackend(:reverse_diff)
+
 
 @model logisticmodel(x,y,L) = begin
     z ~ MvNormal(zeros(length(y)),I)
@@ -14,10 +16,10 @@ Turing.setadbackend(:reverse_diff)
     end
 end
 
-defaultdictsamplogistic = Dict(:nChains=>5,:nSamples=>2000,:file_name=>".csv",
+defaultdictsamplogistic = Dict(:nChains=>5,:nSamples=>2000,:file_name=>"heart.csv",
                     :doTuring=>true,:doGibbs=>true)
 ## Parameters and data
-function sample_exp_laplace(dict=defaultdictsamplogistic)
+function sample_exp_logistic(dict=defaultdictsamplogistic)
     nSamples = dict[:nSamples];
     nChains = dict[:nChains];
     file_name = dict[:file_name]
@@ -25,6 +27,7 @@ function sample_exp_laplace(dict=defaultdictsamplogistic)
     doGibbs = dict[:doGibbs]
     data = Matrix(CSV.read(joinpath(datadir(),"exp_raw",file_name),header=false))
     y = data[:,1]; X = data[:,2:end]; (N,nDim) = size(X)
+    y_turing = (y.+1.0)./2
     rescale!(X,obsdim=1)
     l = initial_lengthscale(X)
 
@@ -43,8 +46,8 @@ function sample_exp_laplace(dict=defaultdictsamplogistic)
         # NUTSchain = mapreduce(c->sample(laplacemodel(X,y,β,L),NUTS(nSamples,100,0.6),progress=true),chainscat,1:nChains)
         for i in 1:nChains
             @info "Turing chain $i/$nChains"
-            t = @elapsed NUTSchain = sample(logisticmodel(X,y,β,L), HMC(nSamples,0.36,2))
-            # t = @elapsed NUTSchain = sample(laplacemodel(X,y,β,L), NUTS(nSamples,100,0.6))
+            t = @elapsed NUTSchain = sample(logisticmodel(X,y_turing,L), HMC(nSamples,0.05,10))
+            # t = @elapsed NUTSchain = sample(logisticmodel(X,y_turing,L), NUTS(nSamples,100,0.9))
             push!(NUTSchains,NUTSchain)
             push!(times_NUTS,t)
         end
@@ -74,14 +77,9 @@ end
 chains, times = sample_exp_logistic()
 
 function treat_chain(chain)
-    burnin = mean(mean.(getindex.(heideldiag(chain),Symbol("Burn-in"))))
-    gelman = mean(gelmandiag(chain)[:PSRF])
-    acorlag1 = mean(mean.(abs,getindex.(autocor(chain),Symbol("lag 1"))))
+    gelman = mean(gelmandiag(chain)[:PSRF]) |> display
+    acorlag1 = mean(mean.(abs,getindex.(autocor(chain),Symbol("lag 1"))))|> display
+    burnin = mean(mean.(getindex.(heideldiag(chain),Symbol("Burn-in")))) |> display
     return burnin, gelman, acorlag1
 end
 treat_chain.(chains)
-mean(mean.(getindex.(heideldiag(NUTSchain),Symbol("Burn-in"))))
-## Diagnostics
-mean(mean.(abs,getindex.(autocor(NUTSchain),Symbol("lag 1"))))
-println("Gelman: NUTS : $(mean(gelmandiag(NUTSchain)[:PSRF])), GibbsSampling : $(mean(gelmandiag(GSchain)[:PSRF]))")
-println("Heidel: NUTS : $(mean(mean.(getindex.(heideldiag(NUTSchain),Symbol("Burn-in"))))), GibbsSampling : $(mean(mean.(getindex.(heideldiag(GSchain),Symbol("Burn-in")))))")
