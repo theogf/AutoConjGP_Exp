@@ -2,6 +2,7 @@ name = "AutoConjugate"
 
 [deps]
 AugmentedGaussianProcesses = "38eea1fd-7d7d-5162-9d08-f89d0f2e271e"
+BSON = "fbb218c0-5317-5bc6-957e-2ee96dd4b1f0"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
 ExtremeStats = "bda1af87-e1f1-54ef-ae32-d9c31cb662a2"
