@@ -1,28 +1,40 @@
 using AugmentedGaussianProcesses
 using MLDataUtils, DelimitedFiles
 using DrWatson
-using Base.Threads
+using PyCall
+using StatsFuns
+gpflow = pyimport("gpflow")
+tf = pyimport("tensorflow")
 quickactivate(joinpath(@__DIR__,".."))
 include(joinpath(srcdir(),"intro.jl"))
 defaultdicthp = Dict(:nIterA=>30,:nIterVI=>500,
                     :file_name=>"heart.csv",:kernel=>RBFKernel,
-                    :likelihood=>LogisticLikelihood(),
+                    :likelihood=>LogisticLikelihood(),:flowlikelihood=>gpflow.likelihoods.Bernoulli(logit),
                     :AVI=>true,:VI=>true,:l=>1.0,:v=>1.0)
 nGrid = 50
 list_l = 10.0.^(range(0,4,length=nGrid))
 list_v = 10.0.^range(0,4,length=nGrid)
-alldicthp = Dict(:nIterA=>30,:nIterVI=>800,
+alldicthp = Dict(:nIterA=>30,:nIterVI=>1000,
                     :file_name=>"heart.csv",:kernel=>RBFKernel,
                     :likelihood=>LogisticLikelihood(),
+                    :flowlikelihood=>gpflow.likelihoods.Bernoulli(),
                     :AVI=>true,:VI=>false,:l=>list_l,:v=>list_v)
 listdict_hp = dict_list(alldicthp)
+py"""
+def pylogit(X,y):
+    tf.math.sigmoid(X*y)
+"""
+
+
+
+##
 function run_vi_exp_hp(dict::Dict=defaultdicthp)
     # Parameters and data
     nIterA = dict[:nIterA];
     nIterVI = dict[:nIterVI];
     file_name = dict[:file_name];
     data = readdlm(joinpath(datadir(),"exp_raw/"*file_name),',');
-    y = data[:,1]; X = data[:,2:end]; N = size(X,1)
+    y = data[:,1]; X = data[:,2:end]; (N,nDim) = size(X)
     rescale!(X,obsdim=1);
     if length(unique(y))!=2
         rescale!(y,obsdim=1);
@@ -31,14 +43,16 @@ function run_vi_exp_hp(dict::Dict=defaultdicthp)
     ktype = dict[:kernel]
     l = dict[:l]
     v = dict[:v]
+    flowkernel = gpflow.kernels.RBF(nDim,lengthscales=l,variance=v,ARD=false)
     ker = ktype(l,variance=v)
     ll = dict[:likelihood]
+    flowll = dict[:flowlikelihood]
     kfold = 3
     nfold = 1
     doAVI = dict[:AVI]
     doVI = dict[:VI]
     predic_results = DataFrame()
-    latent_results = DataFrame()
+    global latent_results = DataFrame()
     i = 1
     X_train = X_test = X
     y_train = y_test = y
@@ -63,14 +77,17 @@ function run_vi_exp_hp(dict::Dict=defaultdicthp)
         if doVI
             try
                 @info "Starting training of classical model";
-                vimodel = VGP(X_train,y_train,ker,ll,QuadratureVI(),verbose=2,optimizer=false)
-                train!(vimodel,iterations=nIterVI)
+                # vimodel = VGP(X_train,y_tr/ain,ker,ll,QuadratureVI(),verbose=2,optimizer=false)
+                # train!(vimodel,iterations=nIterVI)
+                global vimodel = gpflow.models.VGP(X_train,y_train,kern=flowkernel,likelihood=flowll,num_latent=1)
+                run_nat_grads_with_adam(vimodel,nIterVI,Stochastic=false)
                 y_vi,sig_vi = proba_y(vimodel,X_test)
+                sess = vimodel.enquire_session();
                 predic_results = hcat(predic_results,DataFrame([y_vi,sig_vi],[:y_vi,:sig_vi]))
-                latent_results = hcat(latent_results,DataFrame([vimodel.μ[1],diag(vimodel.Σ[1])],[:μ_vi,:Σ_vi]))
-                elbo_vi = ELBO(vimodel); metric_vi=  metric(ll,y_test,y_vi,sig_vi); nll_vi=  nll(ll,y_test,y_vi,sig_vi);
+                latent_results = hcat(latent_results,DataFrame([vec(vimodel.q_mu.read_value(sess)),diag(reshape(vimodel.q_sqrt.read_value(sess),size(X_train,1),size(X_train,1))|>x->x*x')],[:μ_vi,:Σ_vi]))
+                elbo_vi = ELBO(vimodel,sess); metric_vi=  metric(ll,y_test,y_vi,sig_vi); nll_vi=  nll(ll,y_test,y_vi,sig_vi);
             catch e
-                # rethrow(e) #TODO treat error
+                rethrow(e) #TODO treat error
                 @show i+=1
                 if i > nfold
                     break;
@@ -94,8 +111,8 @@ function run_vi_exp_hp(dict::Dict=defaultdicthp)
     )
     return predic_results, latent_results, analysis_results
 end
-run_vi_exp_hp()
-map(run_vi_exp_hp,listdict_hp)
+_,_,res = run_vi_exp_hp()
+# map(run_vi_exp_hp,listdict_hp)
 
 
 res = collect_results(datadir("hp_search","heart.csv"))

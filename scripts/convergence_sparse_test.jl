@@ -10,7 +10,7 @@ nSamples = 100;
 nChains = 5;
 data = Matrix(CSV.read(joinpath(datadir(),"exp_raw/housing.csv"),header=false))
 # data = Matrix(CSV.read(joinpath(datadir(),"exp_raw/heart.csv"),header=false))
-pointsused = :;
+pointsused = 1:50;
 y = data[pointsused,1]; rescale!(y,obsdim=1)
 X = data[pointsused,2:end]; (N,nDim) = size(X); rescale!(X,obsdim=1)
 l = initial_lengthscale(X)
@@ -83,21 +83,24 @@ end
 
 
 nIter = 50
-eta1 = zeros(N,nIter)
-eta2 = zeros(N,nIter)
+M = 20
+eta1 = zeros(M,nIter)
+eta2 = zeros(M^2,nIter)
 function cb(model,iter)
     eta1[:,iter+1] = model.η₁[1]
-    eta2[:,iter+1] = diag(model.η₂[1])
+    eta2[:,iter+1] = vec(model.η₂[1])
 end
 
 ##
 
-amodel = VGP(X,y,RBFKernel(0.1),genlikelihood,AnalyticVI(),verbose=3,optimizer=false)
+amodel = SVGP(X,y,RBFKernel(0.1),genlikelihood,AnalyticVI(),M,verbose=3,optimizer=false)
 train!(amodel,iterations=nIter,callback=cb)
-
 
 ##
 varω = zeros(N)
+Σ = amodel.Σ[1]; η₂ = amodel.η₂[1]
+μ = amodel.μ[1]; η₁ = amodel.η₁[1]
+κ = amodel.κ[1]
 
 function varomega(c)
     ForwardDiff.gradient(x->∇φ(x[1]),[c])[1]/φ(c) - (∇φ(c)/φ(c))^2
@@ -108,16 +111,25 @@ for (i,r) in enumerate(amodel.likelihood.c²[1])
 end
 
 diffeta1 = eta1.-amodel.η₁[1];
-diffeta2 = eta2.-diag(amodel.η₂[1]);
+diffeta2 = eta2.-vec(amodel.η₂[1]);
 diffeta = vcat(diffeta1,diffeta1)
-J¹ = -Diagonal(varω.*(2*amodel.μ[1].*γ.(y).-β.(y)))*amodel.Σ[1];
-J² = (-2Diagonal(varω)*amodel.Σ[1]).*(Diagonal(γ.(y))*amodel.Σ[1]+(2*Diagonal(γ.(y))*amodel.μ[1].-β.(y))*transpose(amodel.μ[1]))
-
+J¹ = -Diagonal(varω.*(2*(κ*μ).*γ.(y).-β.(y)))*κ*Σ
+J² = -reshape(2*Diagonal(varω)*κ*Σ,N,M,1).*reshape(κ*Σ,N,1,M)-
+    reshape(2*Diagonal(varω.*(2*κ*μ.*γ.(y).-β.(y)))*κ*Σ,N,M,1).*reshape(μ,1,1,M)
+# Jtest = zeros(N,M,M)
+# @progress for i in 1:N, j in 1:M, k in 1:M
+    # Jtest[i,j,k] = -varω[i]*(sum(2*Σ[l,j]*μ[k]*(-β(y[i])*κ[i,l] + 2γ(y[i])*κ[i,l]*sum(κ[i,p]*μ[p] for p in 1:M)) for l in 1:M) +
+    # 2*γ(y[i])*sum(Σ[m,j]*Σ[k,n]*κ[i,m]*κ[i,n] for m in 1:M, n in 1:M))
+# end
+# Jtest
+# count(J².!=0)
+# count(Jtest .≈ J²)
+length(Jtest)
 ##
 eps_0_eta1 = diffeta1[:,1]
 eps_tmax_eta1 = zeros(nIter);
 eps_tmean_eta1 = zeros(nIter);
-eps_0_eta2 = diffeta2[:,1]
+eps_0_eta2 = reshape(diffeta2[:,1],M,M)
 eps_tmax_eta2 = zeros(nIter);
 eps_tmean_eta2 = zeros(nIter);
 eps_tmean = zeros(nIter)
@@ -126,21 +138,21 @@ eps_tmax = zeros(nIter)
 @progress for i in 1:nIter
     # i%10 == 0 ? @info("iteration $i") : nothing
     eps_tmax_eta1[i] = maximum(abs.(eps_0_eta1))
-    eps_tmax_eta2[i] = maximum(abs.(eps_0_eta2))
-    eps_tmax[i] = maximum(abs.(vcat(eps_0_eta1,eps_0_eta2)))
+    eps_tmax_eta2[i] = maximum(abs.(vec(eps_0_eta2)))
+    eps_tmax[i] = maximum(abs.(vcat(eps_0_eta1,vec(eps_0_eta2))))
     eps_tmean_eta1[i] = norm(eps_0_eta1)
-    eps_tmean_eta2[i] = norm(eps_0_eta2)
-    eps_tmean[i] = norm(vcat(eps_0_eta1,eps_0_eta2))
-    part_eps_1 = J¹*eps_0_eta1
-    part_eps_2 = J²*eps_0_eta2
-    global eps_0_eta1 = Diagonal(β.(y))*(part_eps_1+part_eps_2)
-    global eps_0_eta2 = -Diagonal(γ.(y))*(part_eps_1+part_eps_2)
+    eps_tmean_eta2[i] = norm(vec(eps_0_eta2))
+    eps_tmean[i] = norm(vcat(eps_0_eta1,vec(eps_0_eta2)))
+    global part_eps_1 = J¹*eps_0_eta1
+    global part_eps_2 = [sum(J²[i,:,:].*eps_0_eta2) for i in 1:N]
+    global eps_0_eta1 = transpose(κ)*Diagonal(β.(y))*(part_eps_1+part_eps_2)
+    global eps_0_eta2 = -transpose(κ)*Diagonal(γ.(y))*Diagonal(part_eps_1+part_eps_2)*κ
 end
-totalmatrix = vcat(hcat(Diagonal(β.(y))*J¹,Diagonal(β.(y))*J²),
-                    hcat(-Diagonal(γ.(y))*J¹,-Diagonal(γ.(y))*J²))
-lambda_eta1_max = maximum(abs.(real.(eigen(J¹).values)))
-lambda_eta1_min = minimum(abs.(real.(eigen(J¹).values)))
-maximum(abs.(real.(eigen(totalmatrix).values)))
+# totalmatrix = vcat(hcat(Diagonal(β.(y))*J¹,Diagonal(β.(y))*J²),
+                    # hcat(-Diagonal(γ.(y))*J¹,-Diagonal(γ.(y))*J²))
+# lambda_eta1_max = maximum(abs.(real.(eigen(J¹).values)))
+# lambda_eta1_min = minimum(abs.(real.(eigen(J¹).values)))
+# maximum(abs.(real.(eigen(totalmatrix).values)))
 ###
 
 using Plots; pyplot()
@@ -191,4 +203,4 @@ plot(p5,p6) |> display
 
 ##
 plot(p1,p2,p3,p4) |> display
-savefig(joinpath(@__DIR__,"Convergence.png"))
+savefig(joinpath(@__DIR__,"Convergence_sparse.png"))
