@@ -9,16 +9,15 @@ quickactivate(joinpath(@__DIR__,".."))
 include(joinpath(srcdir(),"intro.jl"))
 defaultdicthp = Dict(:nIterA=>30,:nIterVI=>100,
                     :file_name=>"heart.csv",:kernel=>RBFKernel,
-                    :likelihood=>LogisticLikelihood(),:flowlikelihood=>gpflow.likelihoods.Bernoulli(py"tf.sigmoid"),
-                    :AVI=>true,:VI=>true,:l=>1.0,:v=>1.0)
+                    :likelihood=>LogisticLikelihood(),:flowlikelihood=>py"BernoulliLogit()", :AVI=>true,:VI=>true,:l=>1.0,:v=>1000.0)
 nGrid = 10
-list_l = 10.0.^(range(0,4,length=nGrid))
-list_v = 10.0.^range(0,4,length=nGrid)
+list_l = 10.0.^(range(0,2,length=nGrid))
+list_v = 10.0.^range(0,2,length=nGrid)
 alldicthp = Dict(:nIterA=>30,:nIterVI=>100,
                     :file_name=>"heart.csv",:kernel=>RBFKernel,
                     :likelihood=>LogisticLikelihood(),
-                    :flowlikelihood=>gpflow.likelihoods.Bernoulli(py"tf.sigmoid"),
-                    :AVI=>true,:VI=>false,:l=>list_l,:v=>list_v)
+                    :flowlikelihood=>py"BernoulliLogit()",
+                    :AVI=>true,:VI=>true,:l=>list_l,:v=>list_v)
 listdict_hp = dict_list(alldicthp)
 
 
@@ -109,7 +108,7 @@ function run_vi_exp_hp(dict::Dict=defaultdicthp)
     return predic_results, latent_results, analysis_results
 end
 _,_,res = run_vi_exp_hp()
-map(run_vi_exp_hp,listdict_hp)
+progress(map(run_vi_exp_hp,listdict_hp)
 
 
 res = collect_results(datadir("hp_search","heart.csv"))
@@ -117,12 +116,15 @@ results = vcat(res.analysis_results...)
 names(res.analysis_results[1])
 using Plots
 
-contourf(log10.(list_l),log10.(list_v),reshape(results[:ELBO_A],nGrid,nGrid))
-contourf(log10.(list_l),log10.(list_v),reshape(results[:ELBO_VI],nGrid,nGrid))
-contourf(log10.(list_l),log10.(list_v),reshape(results[:METRIC_A],nGrid,nGrid))
-contourf(log10.(list_l),log10.(list_v),reshape(results[:METRIC_VI],nGrid,nGrid))
-contourf(log10.(list_l),log10.(list_v),reshape(results[:NLL_A],nGrid,nGrid))
-contourf(log10.(list_l),log10.(list_v),reshape(results[:NLL_VI],nGrid,nGrid))
+results.ELBO_VI[results.ELBO_VI.==-Inf] .= 0
+
+
+contourf(log10.(list_l),log10.(list_v),reshape(results.ELBO_A,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="ELBO Augmented")
+contourf(log10.(list_l),log10.(list_v),reshape(results.ELBO_VI,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="ELBO Classic")
+contourf(log10.(list_l),log10.(list_v),reshape(results[:METRIC_A],nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="Metric Augmented")
+contourf(log10.(list_l),log10.(list_v),reshape(results[:METRIC_VI],nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="Metric Classic")
+contourf(log10.(list_l),log10.(list_v),reshape(results[:NLL_A],nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="NLL Augmented")
+contourf(log10.(list_l),log10.(list_v),reshape(results[:NLL_VI],nGrid,nGrid),,xlabel="log lengthscale",ylabel="log variance",title="NLL Classic")
 function merge_results(results::Vector{DataFrame})
     n = length(results)
     if n ==1

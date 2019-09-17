@@ -16,7 +16,7 @@ function run_nat_grads_with_adam(model,iterations; ind_points_fixed=true, kernel
     else
         gamma_max = 1.0;    gamma_step = 10^(0.1); gamma_fallback = 1e-3;
     end
-    gamma = tf.Variable(gamma_start,dtype=tf.float64);    gamma_incremented = tf.where(tf.less(gamma,gamma_max),gamma*gamma_step,gamma_max)
+    gamma = tf.Variable(gamma_start,dtype=tf.float64);    gamma_incremented = tf.where(tf.less(gamma,gamma_max),tf.minimum(gamma*gamma_step,gamma_max),gamma_max)
     op_increment_gamma = tf.assign(gamma,gamma_incremented)
     op_gamma_fallback = tf.assign(gamma,gamma*gamma_fallback);
     sess = model.enquire_session();    sess.run(tf.variables_initializer([gamma]));
@@ -50,7 +50,7 @@ function run_nat_grads_with_adam(model,iterations; ind_points_fixed=true, kernel
         if op_adam!=0
             sess.run(op_adam)
         end
-        if i % 100 == 0
+        if i % 10 == 0
             println("$i gamma=$(sess.run(gamma)) ELBO=$(sess.run(model.likelihood_tensor))")
         end
         if callback!= nothing
@@ -68,3 +68,30 @@ end
 function AugmentedGaussianProcesses.ELBO(model,sess=model.enquire_session())
     sess.run(model.likelihood_tensor)
 end
+
+
+py"""
+import gpflow
+class BernoulliLogit(gpflow.likelihoods.Likelihood):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def logp(self, F, Y):
+        return tf.where(tf.equal(Y, 1), tf.log_sigmoid(F), tf.log_sigmoid(-F))
+
+    def predict_mean_and_var(self, Fmu, Fvar):
+        return super().predict_mean_and_var(Fmu, Fvar)
+
+
+    def predict_density(self, Fmu, Fvar, Y):
+        p = self.predict_mean_and_var(Fmu, Fvar)[0]
+        return logdensities.bernoulli(Y, p)
+
+
+    def conditional_mean(self, F):
+        return tf.sigmoid(F)
+
+    def conditional_variance(self, F):
+        p = self.conditional_mean(F)
+        return p - tf.square(p)
+"""
