@@ -72,6 +72,7 @@ end
 
 py"""
 import gpflow
+import tensorflow as tf
 class BernoulliLogit(gpflow.likelihoods.Likelihood):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -94,4 +95,46 @@ class BernoulliLogit(gpflow.likelihoods.Likelihood):
     def conditional_variance(self, F):
         p = self.conditional_mean(F)
         return p - tf.square(p)
+"""
+
+
+py"""
+import gpflow
+import tensorflow as tf
+class Laplace(gpflow.likelihoods.Likelihood):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def logp(self, F, Y):
+        var = tf.cast(2.0, gpflow.settings.float_type)
+        const = -tf.log(var)
+        return const - tf.abs(F-Y)
+
+    def conditional_mean(self, F):
+        return tf.identity(F)
+
+    def conditional_variance(self, F):
+        var = tf.cast(2.0, gpflow.settings.float_type)
+        return tf.fill(tf.shape(F),tf.squeeze(var))
+"""
+
+py"""
+import gpflow
+import tensorflow as tf
+class Matern32(gpflow.likelihoods.Likelihood):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def logp(self, F, Y):
+        const = tf.cast(tf.sqrt(3.0)/4.0, gpflow.settings.float_type)
+        const = tf.log(const)
+        d = tf.sqrt(tf.cast(3.0,gpflow.settings.float_type))*tf.abs(F-Y)
+        return const + tf.log(tf.cast(1.,gpflow.settings.float_type) + d) - d
+
+    def conditional_mean(self, F):
+        return tf.identity(F)
+
+    def conditional_variance(self, F):
+        var = tf.cast(4.0/3.0, gpflow.settings.float_type)
+        return tf.fill(tf.shape(F),tf.squeeze(var))
 """

@@ -8,8 +8,8 @@ tf = pyimport("tensorflow")
 quickactivate(joinpath(@__DIR__,".."))
 include(joinpath(srcdir(),"intro.jl"))
 defaultdicthp = Dict(:nIterA=>30,:nIterVI=>100,
-                    :file_name=>"heart.csv",:kernel=>RBFKernel,
-                    :likelihood=>LogisticLikelihood(),:flowlikelihood=>py"BernoulliLogit()", :AVI=>true,:VI=>true,:l=>1.0,:v=>1000.0)
+                    :file_name=>"housing.csv",:kernel=>RBFKernel,
+                    :likelihood=>GenMatern32Likelihood(),:flowlikelihood=>py"Matern32()", :AVI=>true,:VI=>true,:l=>1.0,:v=>10.0)
 nGrid = 10
 list_l = 10.0.^(range(0,2,length=nGrid))
 list_v = 10.0.^range(0,2,length=nGrid)
@@ -59,15 +59,18 @@ function run_vi_exp_hp(dict::Dict=defaultdicthp)
         # Computing truth
         @info "Using l=$l and v=$v, X_train:$(size(X))"
         predic_results = hcat(predic_results,DataFrame([y_test],[:y_test]))
+
+        global save_y_train = copy(y_train)
         # Computing the augmented model
         if doAVI
             @info "Starting training of augmented model";
-            amodel = VGP(X_train,y_train,ker,ll,AnalyticVI(),verbose=2,optimizer=false)
+            global amodel = VGP(X_train,y_train,ker,ll,AnalyticVI(),verbose=2,optimizer=false)
             train!(amodel,iterations=nIterA)
             y_a,sig_a = proba_y(amodel,X_test)
             predic_results = hcat(predic_results,DataFrame([y_a,sig_a],[:y_a,:sig_a]))
             latent_results = hcat(latent_results,DataFrame([amodel.μ[1],diag(amodel.Σ[1])],[:μ_a,:Σ_a]))
             elbo_a = ELBO(amodel); metric_a = metric(ll,y_test,y_a,sig_a); nll_a = nll(ll,y_test,y_a,sig_a);
+            println("ELBO is $elbo_a")
         end
         # Computing the classical model
         if doVI
@@ -107,8 +110,8 @@ function run_vi_exp_hp(dict::Dict=defaultdicthp)
     )
     return predic_results, latent_results, analysis_results
 end
-_,_,res = run_vi_exp_hp()
-progress(map(run_vi_exp_hp,listdict_hp)
+_,lat,res = run_vi_exp_hp()
+# map(run_vi_exp_hp,listdict_hp)
 
 
 res = collect_results(datadir("hp_search","heart.csv"))
@@ -119,12 +122,12 @@ using Plots
 results.ELBO_VI[results.ELBO_VI.==-Inf] .= 0
 
 
-contourf(log10.(list_l),log10.(list_v),reshape(results.ELBO_A,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="ELBO Augmented")
-contourf(log10.(list_l),log10.(list_v),reshape(results.ELBO_VI,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="ELBO Classic")
-contourf(log10.(list_l),log10.(list_v),reshape(results[:METRIC_A],nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="Metric Augmented")
-contourf(log10.(list_l),log10.(list_v),reshape(results[:METRIC_VI],nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="Metric Classic")
-contourf(log10.(list_l),log10.(list_v),reshape(results[:NLL_A],nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="NLL Augmented")
-contourf(log10.(list_l),log10.(list_v),reshape(results[:NLL_VI],nGrid,nGrid),,xlabel="log lengthscale",ylabel="log variance",title="NLL Classic")
+heatmap(log10.(list_l),log10.(list_v),reshape(results.ELBO_A,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="ELBO Augmented")
+heatmap(log10.(list_l),log10.(list_v),reshape(results.ELBO_VI,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="ELBO Classic")
+heatmap(log10.(list_l),log10.(list_v),reshape(results.METRIC_A,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="Metric Augmented")
+heatmap(log10.(list_l),log10.(list_v),reshape(results.METRIC_VI,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="Metric Classic")
+heatmap(log10.(list_l),log10.(list_v),reshape(results.NLL_A,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="NLL Augmented")
+heatmap(log10.(list_l),log10.(list_v),reshape(results.NLL_VI,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="NLL Classic")
 function merge_results(results::Vector{DataFrame})
     n = length(results)
     if n ==1
