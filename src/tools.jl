@@ -7,7 +7,7 @@ function initial_lengthscale(X)
     return sqrt(mean([D[i,j] for i in 2:size(D,1) for j in 1:(i-1)]))
 end
 
-function run_nat_grads_with_adam(model,iterations; ind_points_fixed=true, kernel_fixed =false, callback=nothing , Stochastic = true)
+function run_nat_grads_with_adam(model,iterations; ind_points_fixed=true, kernel_fixed =true, callback=nothing , Stochastic = true)
     # we'll make use of this later when we use a XiTransform
 
     gamma_start = 1e-5;
@@ -68,9 +68,3 @@ end
 function AugmentedGaussianProcesses.ELBO(model,sess=model.enquire_session())
     sess.run(model.likelihood_tensor)
 end
-
-
-py"""
-def pylogit(X,y):
-    tf.math.sigmoid(X*y)
-"""

@@ -7,23 +7,20 @@ gpflow = pyimport("gpflow")
 tf = pyimport("tensorflow")
 quickactivate(joinpath(@__DIR__,".."))
 include(joinpath(srcdir(),"intro.jl"))
-defaultdicthp = Dict(:nIterA=>30,:nIterVI=>500,
+defaultdicthp = Dict(:nIterA=>30,:nIterVI=>100,
                     :file_name=>"heart.csv",:kernel=>RBFKernel,
-                    :likelihood=>LogisticLikelihood(),:flowlikelihood=>gpflow.likelihoods.Bernoulli(logit),
+                    :likelihood=>LogisticLikelihood(),:flowlikelihood=>gpflow.likelihoods.Bernoulli(py"tf.sigmoid"),
                     :AVI=>true,:VI=>true,:l=>1.0,:v=>1.0)
-nGrid = 50
+nGrid = 10
 list_l = 10.0.^(range(0,4,length=nGrid))
 list_v = 10.0.^range(0,4,length=nGrid)
-alldicthp = Dict(:nIterA=>30,:nIterVI=>1000,
+alldicthp = Dict(:nIterA=>30,:nIterVI=>100,
                     :file_name=>"heart.csv",:kernel=>RBFKernel,
                     :likelihood=>LogisticLikelihood(),
-                    :flowlikelihood=>gpflow.likelihoods.Bernoulli(),
+                    :flowlikelihood=>gpflow.likelihoods.Bernoulli(py"tf.sigmoid"),
                     :AVI=>true,:VI=>false,:l=>list_l,:v=>list_v)
 listdict_hp = dict_list(alldicthp)
-py"""
-def pylogit(X,y):
-    tf.math.sigmoid(X*y)
-"""
+
 
 
 
@@ -112,12 +109,12 @@ function run_vi_exp_hp(dict::Dict=defaultdicthp)
     return predic_results, latent_results, analysis_results
 end
 _,_,res = run_vi_exp_hp()
-# map(run_vi_exp_hp,listdict_hp)
+map(run_vi_exp_hp,listdict_hp)
 
 
 res = collect_results(datadir("hp_search","heart.csv"))
-results = vcat(res[:analysis_results]...)
-names(res[:analysis_results][1])
+results = vcat(res.analysis_results...)
+names(res.analysis_results[1])
 using Plots
 
 contourf(log10.(list_l),log10.(list_v),reshape(results[:ELBO_A],nGrid,nGrid))
