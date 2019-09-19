@@ -20,9 +20,9 @@ version = "1.0.0"
 
 [[AdvancedHMC]]
 deps = ["ArgCheck", "InplaceOps", "LazyArrays", "LinearAlgebra", "Parameters", "ProgressMeter", "Random", "Statistics", "StatsBase", "StatsFuns"]
-git-tree-sha1 = "86c3db855b47f86227a7efca60a92d280b616cc2"
+git-tree-sha1 = "5975d0f7e1bcdaa35be3a1b3c1d2f167c48d5521"
 uuid = "0bf59076-c3b1-5ca4-86bd-e02cd72cde3d"
-version = "0.2.4"
+version = "0.2.5"
 
 [[ArgCheck]]
 deps = ["Random"]
@@ -47,12 +47,6 @@ deps = ["LinearAlgebra", "Requires", "SparseArrays"]
 git-tree-sha1 = "981354dab938901c2b607a213e62d9defa50b698"
 uuid = "4fba245c-0d91-5ea0-9b3e-6abc04ee57a9"
 version = "1.2.1"
-
-[[AugmentedGaussianProcesses]]
-deps = ["Clustering", "Colors", "DataFrames", "Dates", "Distances", "Distributions", "Expectations", "FastGaussQuadrature", "FileIO", "GradDescent", "JLD2", "LaTeXStrings", "LinearAlgebra", "ProgressMeter", "Random", "SpecialFunctions", "Statistics", "StatsBase", "StatsFuns", "ValueHistories"]
-path = "/home/theo/.julia/dev/AugmentedGaussianProcesses"
-uuid = "38eea1fd-7d7d-5162-9d08-f89d0f2e271e"
-version = "0.5.1"
 
 [[AxisAlgorithms]]
 deps = ["LinearAlgebra", "Random", "SparseArrays", "WoodburyMatrices"]
@@ -164,12 +158,6 @@ deps = ["Distances", "LinearAlgebra", "NearestNeighbors", "Printf", "SparseArray
 git-tree-sha1 = "f387d5937d0c9d0191c711d7d204bce15bd23b45"
 uuid = "aaaa29a8-35af-508c-8bc3-b662a17a0fe5"
 version = "0.13.3"
-
-[[CodecZlib]]
-deps = ["BinaryProvider", "Libdl", "TranscodingStreams"]
-git-tree-sha1 = "05916673a2627dd91b4969ff8ba6941bc85a960e"
-uuid = "944b1d66-785c-5afd-91f1-9de20f533193"
-version = "0.6.0"
 
 [[ColorBrewer]]
 deps = ["Colors", "JSON", "Test"]
@@ -349,12 +337,6 @@ git-tree-sha1 = "64d27c3946d8d11abf051dd74c7d94a455b00663"
 uuid = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
 version = "1.0.1"
 
-[[Expectations]]
-deps = ["Compat", "Distributions", "FastGaussQuadrature", "SpecialFunctions"]
-git-tree-sha1 = "5b50b515886773484a28f19d9c103dffc7702702"
-uuid = "2fe49d83-0758-5602-8f54-1f90ad0d522b"
-version = "1.1.1"
-
 [[ExtremeStats]]
 deps = ["Distributions", "Ipopt", "JuMP", "Random", "RecipesBase"]
 git-tree-sha1 = "139c936f9d95c651a4c0386b93bd0a9042913a8f"
@@ -461,10 +443,9 @@ uuid = "4d00f742-c7ba-57c2-abde-4428a4b178cb"
 version = "0.7.6"
 
 [[GradDescent]]
-deps = ["Distributions", "ForwardDiff", "LinearAlgebra", "Random", "Test"]
-git-tree-sha1 = "2180f700605eb0ad851f54577855c6a8f13b9a20"
+path = "/home/fajou/.julia/dev/GradDescent"
 uuid = "e1397348-e965-55d8-8fb3-3dd9faf6e4f1"
-version = "0.3.1"
+version = "0.3.1+"
 
 [[Graphics]]
 deps = ["Colors", "Compat", "NaNMath"]
@@ -593,12 +574,6 @@ version = "1.2.0"
 git-tree-sha1 = "a3f24677c21f5bbe9d2a714f95dcd58337fb2856"
 uuid = "82899510-4779-5014-852e-03e436cf321d"
 version = "1.0.0"
-
-[[JLD2]]
-deps = ["CodecZlib", "DataStructures", "FileIO", "Mmap", "Printf"]
-git-tree-sha1 = "343d1ec8ae7d57a608d79ef12e9a853cbb9acd96"
-uuid = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
-version = "0.1.3"
 
 [[JSON]]
 deps = ["Dates", "Mmap", "Parsers", "Unicode"]
@@ -1120,12 +1095,6 @@ git-tree-sha1 = "1aa443d3b4bfa91a8aec32f169a479cb87309910"
 uuid = "9f7883ad-71c0-57eb-9f7f-b5c9e6d3789c"
 version = "0.2.3"
 
-[[TranscodingStreams]]
-deps = ["Random", "Test"]
-git-tree-sha1 = "7c53c35547de1c5b9d46a4797cf6d8253807108c"
-uuid = "3bb67fe8-82b1-5028-8e26-92a6c54297fa"
-version = "0.9.5"
-
 [[Turing]]
 deps = ["AdvancedHMC", "Bijectors", "BinaryProvider", "Distributions", "ForwardDiff", "Libtask", "LinearAlgebra", "MCMCChains", "MacroTools", "Markdown", "PDMats", "ProgressMeter", "Random", "Reexport", "Requires", "SpecialFunctions", "Statistics", "StatsFuns", "Tracker", "Zygote"]
 git-tree-sha1 = "a22861560139627f0e310ac7acec3f3fc6e4a98c"
@@ -1150,12 +1119,6 @@ deps = ["Test"]
 git-tree-sha1 = "63cbbd00217fc9aafedf055b60459c1ae7e01ecc"
 uuid = "1cfade01-22cf-5700-b092-accc4b62d6e1"
 version = "0.4.0"
-
-[[ValueHistories]]
-deps = ["DataStructures", "Random", "RecipesBase", "Test"]
-git-tree-sha1 = "37f692be32132346b7e867ac7565a01b7a1592be"
-uuid = "98cad3c8-aec3-5f06-8e41-884608649ab7"
-version = "0.5.1"
 
 [[VersionParsing]]
 deps = ["Compat"]
