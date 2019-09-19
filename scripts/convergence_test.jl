@@ -51,7 +51,7 @@ train!(amodel,iterations=nIter,callback=cb)
 varω = zeros(N)
 
 function varomega(c)
-    ForwardDiff.gradient(x->∇φ(x[1]),[c])[1]/φ(c) - (∇φ(c)/φ(c))^2
+    ForwardDiff.gradient(x->∇φ(genlikelihood,x[1]),[c])[1]/φ(genlikelihood,c) - (∇φ(genlikelihood,c)/φ(genlikelihood,c))^2
 end
 
 for (i,r) in enumerate(amodel.likelihood.c²[1])
@@ -61,8 +61,8 @@ end
 diffeta1 = eta1.-amodel.η₁[1];
 diffeta2 = eta2.-diag(amodel.η₂[1]);
 diffeta = vcat(diffeta1,diffeta1)
-J¹ = -Diagonal(varω.*(2*amodel.μ[1].*γ.(y).-β.(y)))*amodel.Σ[1];
-J² = (-2Diagonal(varω)*amodel.Σ[1]).*(Diagonal(γ.(y))*amodel.Σ[1]+(2*Diagonal(γ.(y))*amodel.μ[1].-β.(y))*transpose(amodel.μ[1]))
+J¹ = -Diagonal(varω.*(2*amodel.μ[1].*γ(genlikelihood,y).-β(genlikelihood,y)))*amodel.Σ[1];
+J² = (-2Diagonal(varω)*amodel.Σ[1]).*(Diagonal(γ(genlikelihood,y))*amodel.Σ[1]+(2*Diagonal(γ(genlikelihood,y))*amodel.μ[1].-β(genlikelihood,y))*transpose(amodel.μ[1]))
 
 ##
 eps_0_eta1 = diffeta1[:,1]
@@ -84,11 +84,11 @@ eps_tmax = zeros(nIter)
     eps_tmean[i] = norm(vcat(eps_0_eta1,eps_0_eta2))
     part_eps_1 = J¹*eps_0_eta1
     part_eps_2 = J²*eps_0_eta2
-    global eps_0_eta1 = Diagonal(β.(y))*(part_eps_1+part_eps_2)
-    global eps_0_eta2 = -Diagonal(γ.(y))*(part_eps_1+part_eps_2)
+    global eps_0_eta1 = Diagonal(β(genlikelihood,y))*(part_eps_1+part_eps_2)
+    global eps_0_eta2 = -Diagonal(γ(genlikelihood,y))*(part_eps_1+part_eps_2)
 end
-totalmatrix = vcat(hcat(Diagonal(β.(y))*J¹,Diagonal(β.(y))*J²),
-                    hcat(-Diagonal(γ.(y))*J¹,-Diagonal(γ.(y))*J²))
+totalmatrix = vcat(hcat(Diagonal(β(genlikelihood,y))*J¹,Diagonal(β(genlikelihood,y))*J²),
+                    hcat(-Diagonal(γ(genlikelihood,y))*J¹,-Diagonal(γ(genlikelihood,y))*J²))
 lambda_eta1_max = maximum(abs.(real.(eigen(J¹).values)))
 lambda_eta1_min = minimum(abs.(real.(eigen(J¹).values)))
 maximum(abs.(real.(eigen(totalmatrix).values)))
