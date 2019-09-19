@@ -10,13 +10,13 @@ include(joinpath(srcdir(),"intro.jl"))
 defaultdicthp = Dict(:nIterA=>30,:nIterVI=>100,
                     :file_name=>"housing.csv",:kernel=>RBFKernel,
                     :likelihood=>GenMatern32Likelihood(),:flowlikelihood=>py"Matern32()", :AVI=>true,:VI=>true,:l=>1.0,:v=>10.0)
-nGrid = 10
-list_l = 10.0.^(range(0,2,length=nGrid))
-list_v = 10.0.^range(0,2,length=nGrid)
+nGrid = 100
+list_l = 10.0.^(range(-1,2,length=nGrid))
+list_v = 10.0.^range(-1,2,length=nGrid)
 alldicthp = Dict(:nIterA=>30,:nIterVI=>100,
-                    :file_name=>"heart.csv",:kernel=>RBFKernel,
-                    :likelihood=>LogisticLikelihood(),
-                    :flowlikelihood=>py"BernoulliLogit()",
+                    :file_name=>"housing.csv",:kernel=>RBFKernel,
+                    :likelihood=>GenMatern32Likelihood(),
+                    :flowlikelihood=>py"Matern32()",
                     :AVI=>true,:VI=>true,:l=>list_l,:v=>list_v)
 listdict_hp = dict_list(alldicthp)
 
@@ -59,7 +59,6 @@ function run_vi_exp_hp(dict::Dict=defaultdicthp)
         # Computing truth
         @info "Using l=$l and v=$v, X_train:$(size(X))"
         predic_results = hcat(predic_results,DataFrame([y_test],[:y_test]))
-
         global save_y_train = copy(y_train)
         # Computing the augmented model
         if doAVI
@@ -101,7 +100,7 @@ function run_vi_exp_hp(dict::Dict=defaultdicthp)
         end
     end
     diff_elbo = elbo_vi - elbo_a
-    analysis_results = DataFrame([[l],[v],[elbo_a],[elbo_vi],[diff_elbo],[metric_a],[metric_vi],[nll_a],[nll_vi]],[:LENGTHSCALE,:VARIANCE,:ELBO_A,:ELBO_VI,:DIFF_ELBO,:METRIC_A,:METRIC_VI,:NLL_A,:NLL_VI])
+    analysis_results = DataFrame([[l],[v],[nameof(typeof(ll))],[elbo_a],[elbo_vi],[diff_elbo],[metric_a],[metric_vi],[nll_a],[nll_vi]],[:LENGTHSCALE,:VARIANCE,:LIKELIHOOD,:ELBO_A,:ELBO_VI,:DIFF_ELBO,:METRIC_A,:METRIC_VI,:NLL_A,:NLL_VI])
     likelihood = nameof(typeof(ll))
     params = @ntuple(likelihood,l,v)
     @tagsave(
@@ -110,37 +109,39 @@ function run_vi_exp_hp(dict::Dict=defaultdicthp)
     )
     return predic_results, latent_results, analysis_results
 end
-_,lat,res = run_vi_exp_hp()
-# map(run_vi_exp_hp,listdict_hp)
+# _,lat,res = run_vi_exp_hp()
+map(run_vi_exp_hp,listdict_hp)
 
 
-res = collect_results(datadir("hp_search","heart.csv"))
+res = collect_results(datadir("hp_search","housing.csv"))
 results = vcat(res.analysis_results...)
 names(res.analysis_results[1])
-using Plots
 
 results.ELBO_VI[results.ELBO_VI.==-Inf] .= 0
 
 
-heatmap(log10.(list_l),log10.(list_v),reshape(results.ELBO_A,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="ELBO Augmented")
-heatmap(log10.(list_l),log10.(list_v),reshape(results.ELBO_VI,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="ELBO Classic")
-heatmap(log10.(list_l),log10.(list_v),reshape(results.METRIC_A,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="Metric Augmented")
-heatmap(log10.(list_l),log10.(list_v),reshape(results.METRIC_VI,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="Metric Classic")
-heatmap(log10.(list_l),log10.(list_v),reshape(results.NLL_A,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="NLL Augmented")
-heatmap(log10.(list_l),log10.(list_v),reshape(results.NLL_VI,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="NLL Classic")
-function merge_results(results::Vector{DataFrame})
-    n = length(results)
-    if n ==1
-        return results[1]
-    else
-        colnames = names(results[1])
-        m_results = DataFrame()
-        for colname in colnames
-            m = mean(results[i][colname] for i in 1:n)
-            v= var.(eachrow(hcat([results[i][colname] for i in 1:n]...)))
-            m_results = hcat(m_results,DataFrame([m,v],[Symbol(colname,"_μ"),Symbol(colname,"_σ")]))
+
+if Sys.CPU_NAME == "skylake"
+    using Plots
+    heatmap(log10.(list_l),log10.(list_v),reshape(results.ELBO_A,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="ELBO Augmented")
+    heatmap(log10.(list_l),log10.(list_v),reshape(results.ELBO_VI,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="ELBO Classic")
+    heatmap(log10.(list_l),log10.(list_v),reshape(results.METRIC_A,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="Metric Augmented")
+    heatmap(log10.(list_l),log10.(list_v),reshape(results.METRIC_VI,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="Metric Classic")
+    heatmap(log10.(list_l),log10.(list_v),reshape(results.NLL_A,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="NLL Augmented")
+    heatmap(log10.(list_l),log10.(list_v),reshape(results.NLL_VI,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="NLL Classic")
+    function merge_results(results::Vector{DataFrame})
+        n = length(results)
+        if n ==1
+            return results[1]
+        else
+            colnames = names(results[1])
+            m_results = DataFrame()
+            for colname in colnames
+                m = mean(results[i][colname] for i in 1:n)
+                v= var.(eachrow(hcat([results[i][colname] for i in 1:n]...)))
+                m_results = hcat(m_results,DataFrame([m,v],[Symbol(colname,"_μ"),Symbol(colname,"_σ")]))
+            end
+            return m_results
         end
-        return m_results
     end
 end
-# merge_results(p_results)
