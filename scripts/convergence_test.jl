@@ -22,63 +22,14 @@ burnin=1
 ν = 10.0; likelihood = StudentTLikelihood(ν); noisegen = TDist(ν); lname="StudentT"
 # likelihood = LaplaceLikelihood(); noisegen = Laplace(); lname = "Laplace";
 # likelihood = LogisticLikelihood(); noisegen = Normal(); lname = "Logistic"
-if lname == "Laplace"
-    global b = 1.0
-    global C()=1/(2b)
-    global g(y) = 0.0
-    global α(y) = y^2
-    global β(y) = 2*y
-    global γ(y) = 1.0
-    global φ(r) = exp(-sqrt(r)/b)
-    global ∇φ(r) = -exp(-sqrt(r)/b)/(2*b*sqrt(r))
-    global ll(y,x) = 1/(2b)*exp(-abs(y-x)/b)
-elseif lname == "StudentT"
-    global C()= gamma(0.5*(ν+1))/(sqrt(ν*π)*gamma(0.5*ν))
-    global g(y) = 0.0
-    global α(y) = y^2
-    global β(y) = 2*y
-    global γ(y) = 1.0
-    global φ(r) = (1+r/ν)^(-0.5*(ν+1))
-    global ∇φ(r) = -(0.5*(1+ν)/ν)*(1+r/ν)^(-0.5*(ν+1)-1)
-    global ll(y,x) = pdf(LocationScale(y,1.0,TDist(ν)),x)
-elseif lname == "Logistic"
-    global C()= 0.5
-    global g(y) = 0.5*y
-    global α(y) = 0.0
-    global β(y) = 0.0
-    global γ(y) = 1.0
-    global φ(r) = sech.(0.5*sqrt.(r))
-    global ∇φ(r) = -0.25*(sech.(0.5*sqrt.(r))*tanh.(0.5*sqrt.(r)))/(sqrt.(r))
-    global ll(y,x) = logistic(y*x)
-end
-AGP.@augmodel(St,Regression,C,g,α,β, γ, φ, ∇φ)
-
-Statistics.var(::StLikelihood) = ν/(ν-2.0)
-
-AGP.@augmodel(La,Regression,C,g,α,β, γ, φ, ∇φ)
-
-Statistics.var(::LaLikelihood) = 2*b^2
-
-var(StLikelihood())
-function AGP.grad_quad(likelihood::LaLikelihood{T},y::Real,μ::Real,σ²::Real,inference::Inference) where {T<:Real}
-    nodes = inference.nodes*sqrt2*sqrt(σ²) .+ μ
-    Edlogpdf = dot(inference.weights,AGP.grad_log_pdf.(likelihood,y,nodes))
-    Ed²logpdf =  zero(T)#1/(b * sqrt(twoπ*σ²))
-    return -Edlogpdf::T, Ed²logpdf::T
-end
-AGP.@augmodel(Lo,Classification,C,g,α,β, γ, φ, ∇φ)
-
-AGP.hessian_log_pdf(::LoLikelihood{T},y::Real,f::Real) where {T<:Real} = -exp(y*f)/AGP.logistic(-y*f)^2
-
-AGP.grad_log_pdf(::LoLikelihood{T},y::Real,f::Real) where {T<:Real} = y*AGP.logistic(-y*f)
 
 ##
 if lname == "Logistic"
-    global genlikelihood = LoLikelihood()
+    global genlikelihood = GenLogisticLikelihood()
 elseif lname == "Laplace"
-    global genlikelihood = LaLikelihood()
+    global genlikelihood = GenLaplaceLikelihood()
 elseif lname == "StudentT"
-    global genlikelihood = StLikelihood()
+    global genlikelihood = GenStudentTLikelihood()
 end
 
 
@@ -142,53 +93,54 @@ lambda_eta1_max = maximum(abs.(real.(eigen(J¹).values)))
 lambda_eta1_min = minimum(abs.(real.(eigen(J¹).values)))
 maximum(abs.(real.(eigen(totalmatrix).values)))
 ###
+if Sys.CPU_NAME == "skylake"
+    using Plots; pyplot()
+    ##
+    default(lw=3.0)
+    maxdiffeta1 = maximum.(abs,eachcol(diffeta1))
+    maxdiffeta1 = maxdiffeta1[maxdiffeta1.!=0]
+    p1 = plot(1:length(maxdiffeta1),maxdiffeta1,lab="Max Error eta 1",yaxis=:log,xlabel="t",ylabel=L"\max(|\eta_1^t-\eta_1^*|)")
+    plot!(1:nIter,eps_tmax_eta1,lab="Max Expected Bound")
+    # plot!(1:nIter,x->lambda_eta1_max^x,lab="Upper bound")
+    # plot!(1:nIter,x->abs(lambda_eta1_min)^x,lab="Lower bound")
+    meandiffeta1 = norm.(eachcol(diffeta1))
+    meandiffeta1 = meandiffeta1[meandiffeta1.!=0]
+    p2 = plot(1:length(meandiffeta1),meandiffeta1,lab="Mean Error eta 1",yaxis=:log,xlabel="t",ylabel=L"||\eta_1^t-\eta_1^*||")
+    plot!(1:nIter,eps_tmean_eta1,lab="Mean Bound")
 
-using Plots; pyplot()
-##
-default(lw=3.0)
-maxdiffeta1 = maximum.(abs,eachcol(diffeta1))
-maxdiffeta1 = maxdiffeta1[maxdiffeta1.!=0]
-p1 = plot(1:length(maxdiffeta1),maxdiffeta1,lab="Max Error eta 1",yaxis=:log,xlabel="t",ylabel=L"\max(|\eta_1^t-\eta_1^*|)")
-plot!(1:nIter,eps_tmax_eta1,lab="Max Expected Bound")
-# plot!(1:nIter,x->lambda_eta1_max^x,lab="Upper bound")
-# plot!(1:nIter,x->abs(lambda_eta1_min)^x,lab="Lower bound")
-meandiffeta1 = norm.(eachcol(diffeta1))
-meandiffeta1 = meandiffeta1[meandiffeta1.!=0]
-p2 = plot(1:length(meandiffeta1),meandiffeta1,lab="Mean Error eta 1",yaxis=:log,xlabel="t",ylabel=L"||\eta_1^t-\eta_1^*||")
-plot!(1:nIter,eps_tmean_eta1,lab="Mean Bound")
+    plot(p1,p2) |> display
+    # plot!(1:nIter,maximum(eachcol(diffmu)),lab="Error sigma")
 
-plot(p1,p2) |> display
-# plot!(1:nIter,maximum(eachcol(diffmu)),lab="Error sigma")
+    ##
 
-##
-
-maxdiffeta2 = maximum.(abs,eachcol(diffeta2))
-maxdiffeta2 = maxdiffeta2[maxdiffeta2.!=0]
-p3 = plot(1:length(maxdiffeta2),maxdiffeta2,lab="Max Error eta 2",yaxis=:log,xlabel="t",ylabel=L"\max(|\eta_2^t-\eta_2^*|)")
-plot!(1:nIter,eps_tmax_eta2,lab="Max Bound")
-meandiffeta2 = norm.(eachcol(diffeta2))
-meandiffeta2 = meandiffeta2[meandiffeta2.!=0]
-p4 = plot(1:length(meandiffeta2),meandiffeta2,lab="Mean Error eta 2",yaxis=:log,xlabel="t",ylabel=L"||\eta_2^t-\eta_2^*||")
-plot!(1:nIter,eps_tmean_eta2,lab="Mean Bound")
-plot(p3,p4) |> display
+    maxdiffeta2 = maximum.(abs,eachcol(diffeta2))
+    maxdiffeta2 = maxdiffeta2[maxdiffeta2.!=0]
+    p3 = plot(1:length(maxdiffeta2),maxdiffeta2,lab="Max Error eta 2",yaxis=:log,xlabel="t",ylabel=L"\max(|\eta_2^t-\eta_2^*|)")
+    plot!(1:nIter,eps_tmax_eta2,lab="Max Bound")
+    meandiffeta2 = norm.(eachcol(diffeta2))
+    meandiffeta2 = meandiffeta2[meandiffeta2.!=0]
+    p4 = plot(1:length(meandiffeta2),meandiffeta2,lab="Mean Error eta 2",yaxis=:log,xlabel="t",ylabel=L"||\eta_2^t-\eta_2^*||")
+    plot!(1:nIter,eps_tmean_eta2,lab="Mean Bound")
+    plot(p3,p4) |> display
 
 
-##
+    ##
 
-maxdiffeta = maximum.(abs,eachcol(diffeta))
-maxdiffeta = maxdiffeta[maxdiffeta.!=0]
-p5 = plot(1:length(maxdiffeta),maxdiffeta,lab="Max Error eta 1",yaxis=:log,xlabel="t",ylabel=L"\max(|\eta^t-\eta^*|)")
-plot!(1:nIter,eps_tmax,lab="Max Expected Bound")
-# plot!(1:nIter,x->lambda_eta1_max^x,lab="Upper bound")
-# plot!(1:nIter,x->abs(lambda_eta1_min)^x,lab="Lower bound")
-meandiffeta = norm.(eachcol(diffeta))
-meandiffeta = meandiffeta[meandiffeta.!=0]
-p6 = plot(1:length(meandiffeta),meandiffeta,lab="Mean Error eta",yaxis=:log,xlabel="t",ylabel=L"||\eta^t-\eta^*||")
-plot!(1:nIter,eps_tmean,lab="Mean Bound")
+    maxdiffeta = maximum.(abs,eachcol(diffeta))
+    maxdiffeta = maxdiffeta[maxdiffeta.!=0]
+    p5 = plot(1:length(maxdiffeta),maxdiffeta,lab="Max Error eta 1",yaxis=:log,xlabel="t",ylabel=L"\max(|\eta^t-\eta^*|)")
+    plot!(1:nIter,eps_tmax,lab="Max Expected Bound")
+    # plot!(1:nIter,x->lambda_eta1_max^x,lab="Upper bound")
+    # plot!(1:nIter,x->abs(lambda_eta1_min)^x,lab="Lower bound")
+    meandiffeta = norm.(eachcol(diffeta))
+    meandiffeta = meandiffeta[meandiffeta.!=0]
+    p6 = plot(1:length(meandiffeta),meandiffeta,lab="Mean Error eta",yaxis=:log,xlabel="t",ylabel=L"||\eta^t-\eta^*||")
+    plot!(1:nIter,eps_tmean,lab="Mean Bound")
 
-plot(p5,p6) |> display
-# plot!(1:nIter,maximum(eachcol(diffmu)),lab="Error sigma")
+    plot(p5,p6) |> display
+    # plot!(1:nIter,maximum(eachcol(diffmu)),lab="Error sigma")
 
-##
-plot(p1,p2,p3,p4) |> display
-savefig(joinpath(@__DIR__,"Convergence.png"))
+    ##
+    plot(p1,p2,p3,p4) |> display
+    savefig(joinpath(@__DIR__,"Convergence.png"))
+end
