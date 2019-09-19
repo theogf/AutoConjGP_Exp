@@ -69,72 +69,38 @@ function AugmentedGaussianProcesses.ELBO(model,sess=model.enquire_session())
     sess.run(model.likelihood_tensor)
 end
 
+function csv2h5(file_name::String,classification=false)
+    @assert file_name[end-3:end] == ".csv" "Should be on a .csv file"
+    file_short = file_name[1:end-4]
+    data = readdlm(file_name,',')
+    if classification
+        y = data[:,1]
+        ys = unique(y)
+        length(ys) == 2
+        y[y.==ys[1]] .= 1; y[y.==ys[2]] .= -1;
+        data[:,1] .= y
+    end
+    if isfile(file_short*".h5")
+        @warn "Rewriting file $(file_short*".h5")"
+        rm(file_short*".h5")
+    end
+    h5write(file_short*".h5","data",data)
+end
 
-py"""
-import gpflow
-import tensorflow as tf
-class BernoulliLogit(gpflow.likelihoods.Likelihood):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-    def logp(self, F, Y):
-        return tf.where(tf.equal(Y, 1), tf.log_sigmoid(F), tf.log_sigmoid(-F))
-
-    def predict_mean_and_var(self, Fmu, Fvar):
-        return super().predict_mean_and_var(Fmu, Fvar)
-
-
-    def predict_density(self, Fmu, Fvar, Y):
-        p = self.predict_mean_and_var(Fmu, Fvar)[0]
-        return logdensities.bernoulli(Y, p)
-
-
-    def conditional_mean(self, F):
-        return tf.sigmoid(F)
-
-    def conditional_variance(self, F):
-        p = self.conditional_mean(F)
-        return p - tf.square(p)
-"""
-
-
-py"""
-import gpflow
-import tensorflow as tf
-class Laplace(gpflow.likelihoods.Likelihood):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-    def logp(self, F, Y):
-        var = tf.cast(2.0, gpflow.settings.float_type)
-        const = -tf.log(var)
-        return const - tf.abs(F-Y)
-
-    def conditional_mean(self, F):
-        return tf.identity(F)
-
-    def conditional_variance(self, F):
-        var = tf.cast(2.0, gpflow.settings.float_type)
-        return tf.fill(tf.shape(F),tf.squeeze(var))
-"""
-
-py"""
-import gpflow
-import tensorflow as tf
-class Matern32(gpflow.likelihoods.Likelihood):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-    def logp(self, F, Y):
-        const = tf.cast(tf.sqrt(3.0)/4.0, gpflow.settings.float_type)
-        const = tf.log(const)
-        d = tf.sqrt(tf.cast(3.0,gpflow.settings.float_type))*tf.abs(F-Y)
-        return const + tf.log(tf.cast(1.,gpflow.settings.float_type) + d) - d
-
-    def conditional_mean(self, F):
-        return tf.identity(F)
-
-    def conditional_variance(self, F):
-        var = tf.cast(4.0/3.0, gpflow.settings.float_type)
-        return tf.fill(tf.shape(F),tf.squeeze(var))
-"""
+function convertall()
+    top_folder = datadir("datasets")
+    class_folds = readdir(joinpath(top_folder,"classification"))
+    for fold in class_folds
+        files = readdir(joinpath(top_folder,"classification",fold))
+        for f in files
+            csv2h5(joinpath(top_folder,"classification",fold,f),true)
+        end
+    end
+    reg_folds = readdir(joinpath(top_folder,"regression"))
+    for fold in class_folds
+        files = readdir(joinpath(top_folder,"regression",fold))
+        for f in files
+            csv2h5(joinpath(top_folder,"regression",fold,f),false)
+        end
+    end
+end

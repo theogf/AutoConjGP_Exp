@@ -56,3 +56,75 @@ gmatern32(y) = 0.0
 llmatern32(y,x) = sqrt(3.0)/4.0*(1.0+sqrt(3*abs2(x-y)))*exp(-sqrt(3*abs2(x-y)))
 AGP.@augmodel(GenMatern32,Regression,Cmatern32,gmatern32,αmatern32,βmatern32, γmatern32, φmatern32, ∇φmatern32)
 Statistics.var(::GenMatern32Likelihood) = 4.0/3.0
+
+
+### GP Flow likelihoods
+
+py"""
+import gpflow
+import tensorflow as tf
+class BernoulliLogit(gpflow.likelihoods.Likelihood):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def logp(self, F, Y):
+        return tf.where(tf.equal(Y, 1), tf.log_sigmoid(F), tf.log_sigmoid(-F))
+
+    def predict_mean_and_var(self, Fmu, Fvar):
+        return super().predict_mean_and_var(Fmu, Fvar)
+
+
+    def predict_density(self, Fmu, Fvar, Y):
+        p = self.predict_mean_and_var(Fmu, Fvar)[0]
+        return logdensities.bernoulli(Y, p)
+
+
+    def conditional_mean(self, F):
+        return tf.sigmoid(F)
+
+    def conditional_variance(self, F):
+        p = self.conditional_mean(F)
+        return p - tf.square(p)
+"""
+
+
+py"""
+import gpflow
+import tensorflow as tf
+class Laplace(gpflow.likelihoods.Likelihood):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def logp(self, F, Y):
+        var = tf.cast(2.0, gpflow.settings.float_type)
+        const = -tf.log(var)
+        return const - tf.abs(F-Y)
+
+    def conditional_mean(self, F):
+        return tf.identity(F)
+
+    def conditional_variance(self, F):
+        var = tf.cast(2.0, gpflow.settings.float_type)
+        return tf.fill(tf.shape(F),tf.squeeze(var))
+"""
+
+py"""
+import gpflow
+import tensorflow as tf
+class Matern32(gpflow.likelihoods.Likelihood):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def logp(self, F, Y):
+        const = tf.cast(tf.sqrt(3.0)/4.0, gpflow.settings.float_type)
+        const = tf.log(const)
+        d = tf.sqrt(tf.cast(3.0,gpflow.settings.float_type))*tf.abs(F-Y)
+        return const + tf.log(tf.cast(1.,gpflow.settings.float_type) + d) - d
+
+    def conditional_mean(self, F):
+        return tf.identity(F)
+
+    def conditional_variance(self, F):
+        var = tf.cast(4.0/3.0, gpflow.settings.float_type)
+        return tf.fill(tf.shape(F),tf.squeeze(var))
+"""

@@ -8,8 +8,8 @@ include(joinpath(srcdir(),"intro.jl"))
 ## Parameters and data
 nSamples = 100;
 nChains = 5;
-data = Matrix(CSV.read(joinpath(datadir(),"exp_raw/housing.csv"),header=false))
-# data = Matrix(CSV.read(joinpath(datadir(),"exp_raw/heart.csv"),header=false))
+data = Matrix(CSV.read(joinpath(datadir(),"datasets/regression/small/housing.csv"),header=false))
+# data = Matrix(CSV.read(joinpath(datadir(),"datasets/classification/small/heart.csv"),header=false))
 pointsused = 1:50;
 y = data[pointsused,1]; rescale!(y,obsdim=1)
 X = data[pointsused,2:end]; (N,nDim) = size(X); rescale!(X,obsdim=1)
