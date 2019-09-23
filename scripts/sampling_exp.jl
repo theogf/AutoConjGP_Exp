@@ -3,7 +3,7 @@ quickactivate(joinpath("..",@__DIR__))
 include(joinpath(srcdir(),"intro.jl"))
 using Turing, MCMCChains
 using AugmentedGaussianProcesses
-using MLDataUtils, CSV
+using MLDataUtils, CSV, StatsFuns
 Turing.setadbackend(:reverse_diff)
 
 @model laplacemodel(x,y,L) = begin
@@ -30,9 +30,9 @@ end
     end
 end
 
-defaultdictsamp = Dict(:nChains=>1,:nSamples=>100,:file_name=>"heart.csv",
+defaultdictsamp = Dict(:nChains=>2,:nSamples=>100,:file_name=>"heart.csv",
                     :likelihood=>:Logistic,
-                    :doHMC=>true,:doMH=>true,:doNUTS=>true,:doGibbs=>true)
+                    :doHMC=>true,:doMH=>true,:doNUTS=>!true,:doGibbs=>true)
 ν = 3.0
 β_l = 1.0
 likelihood2gibbs = Dict(:Logistic=>LogisticLikelihood(),:Laplace=>LaplaceLikelihood(β_l),:StudentT=>StudentTLikelihood(ν))
@@ -61,7 +61,7 @@ function sample_exp(dict=defaultdictsamp)
         y_turing = (y.+1.0)./2
     elseif likelihood2ptype[likelihood] == :regression
         rescale!(y,obsdim=1);
-        y_turing .= y
+        y_turing = copy(y)
     end
 
     kernel = RBFKernel(l)
@@ -70,8 +70,9 @@ function sample_exp(dict=defaultdictsamp)
     burnin=1
     β = 1.0
     !isdir(datadir("part_1",string(likelihood))) ? mkdir(datadir("part_1",string(likelihood))) : nothing
-    chains = []
+    all_chains = []
     times = []
+    params_samp = @ntuple(nSamples)
     ## Training Gibbs Sampling
     if doGibbs
         GSsamples = zeros(nSamples,N,nChains)
@@ -84,9 +85,11 @@ function sample_exp(dict=defaultdictsamp)
             GSsamples[:,:,i] = transpose(hcat(amodel.inference.sample_store[1]...))
             push!(times_Gibbs,t)
         end
-        global GSchain = Chains(GSsamples,string.("f[",1:N,"]"))
-        write(datadir("part_1",string(likelihood),"Gibbs.jls"),GSchain)
-        push!(chains,GSchain)
+        chains = DataFrame(Chains(GSsamples,string.("f[",1:N,"]")))
+        infos = DataFrame(reshape(["GS",nSamples,mean(times_Gibbs),0,0,0,0],1,:),[:alg,:nSamples,:time,:epsilon,:n_step,:n_adapt,:accept])
+        @tagsave(datadir("part_1",string(likelihood),savename("GS",params_samp,"bson")), @dict chains infos)
+        # write(datadir("part_1",string(likelihood),"Gibbs.jls"),GSchain)
+        push!(all_chains,chains)
         push!(times,times_Gibbs)
     end
     ## Training HMC
@@ -94,15 +97,18 @@ function sample_exp(dict=defaultdictsamp)
         @info "Starting chains of HMC"
         times_HMC = []
         HMCchains = []
+        epsilon = 0.36; n_step = 2
         for i in 1:nChains
             @info "Turing chain $i/$nChains"
-            t = @elapsed HMCchain = sample(likelihood2turing[likelihood](X,y,L), HMC(0.36,2), nSamples)
+            t = @elapsed HMCchain = sample(likelihood2turing[likelihood](X,y_turing,L), HMC(nSamples,epsilon,n_step))
             push!(HMCchains,HMCchain)
             push!(times_HMC,t)
         end
-        HMCchains = chainscat(HMCchains...)
-        write(datadir("part_1",string(likelihood),"HMC.jls"),HMCchains)
-        push!(chains,HMCchains)
+        chains = DataFrame(chainscat(HMCchains...))
+        infos = DataFrame(reshape(["HMC",nSamples,mean(times_HMC),epsilon,n_step,0,0],1,:),[:alg,:nSamples,:time,:epsilon,:n_step,:n_adapt,:accept])
+        params_HMC = @ntuple(nSamples,epsilon,n_step)
+        @tagsave(datadir("part_1",string(likelihood),savename("HMC",params_HMC,"bson")), @dict chains infos)
+        push!(all_chains,chains)
         push!(times,times_HMC)
     end
     ## Training NUTS
@@ -110,15 +116,19 @@ function sample_exp(dict=defaultdictsamp)
         @info "Starting chains of NUTS"
         times_NUTS = []
         NUTSchains = []
+        n_adapt = 100;
+        accept = 0.2
         for i in 1:nChains
             @info "Turing chain $i/$nChains"
-            t = @elapsed NUTSchain = sample(likelihood2turing[likelihood](X,y,L), NUTS(100,0.2), nSamples+100)
+            t = @elapsed NUTSchain = sample(likelihood2turing[likelihood](X,y_turing,L), NUTS(nSamples,n_adapt,accept))
             push!(NUTSchains,NUTSchain)
             push!(times_NUTS,t)
         end
-        NUTSchains = chainscat(NUTSchains...)
-        write(datadir("part_1",string(likelihood),"NUTS.jls"),NUTSchains)
-        push!(chains,NUTSchains)
+        chains = DataFrame(chainscat(NUTSchains...))
+        infos = DataFrame(reshape(["NUTS",nSamples,mean(times_NUTS),0,0,n_adapt,accept],1,:),[:alg,:nSamples,:time,:epsilon,:n_step,:n_adapt,:accept])
+        params_NUTS = @ntuple(nSamples,n_adapt,accept)
+        @tagsave(datadir("part_1",string(likelihood),savename("NUTS",params_NUTS,"bson")), @dict chains infos)
+        push!(all_chains,chains)
         push!(times,times_NUTS)
     end
     ## Training MH
@@ -128,30 +138,17 @@ function sample_exp(dict=defaultdictsamp)
         MHchains = []
         for i in 1:nChains
             @info "Turing chain $i/$nChains"
-            t = @elapsed MHchain = sample(likelihood2turing[likelihood](X,y,L), MH(),nSamples)
+            t = @elapsed MHchain = sample(likelihood2turing[likelihood](X,y_turing,L), MH(nSamples))
             push!(MHchains,MHchain)
             push!(times_MH,t)
         end
-        MHchains = chainscat(MHchains...)
-        write(datadir("part_1",string(likelihood),"MH.jls"),MHchains)
-
-        push!(chains,MHchains)
+        chains = DataFrame(chainscat(MHchains...))
+        infos = DataFrame(reshape(["MH",nSamples,mean(times_MH),0,0,0,0],1,:),[:alg,:nSamples,:time,:epsilon,:n_step,:n_adapt,:accept])
+        @tagsave(datadir("part_1",string(likelihood),savename("MH",params_samp,"bson")), @dict chains infos)
+        push!(all_chains,chains)
         push!(times,times_MH)
     end
-    return chains,times
+    return all_chains,times
 end
 
 chains, times = sample_exp()
-
-function treat_chain(chain)
-    burnin = mean(mean.(getindex.(heideldiag(chain),Symbol("Burn-in"))))
-    gelman = mean(gelmandiag(chain)[:PSRF])
-    acorlag1 = mean(mean.(abs,getindex.(autocor(chain),Symbol("lag 1"))))
-    return burnin, gelman, acorlag1
-end
-treat_chain.(chains)
-mean(mean.(getindex.(heideldiag(NUTSchain),Symbol("Burn-in"))))
-## Diagnostics
-mean(mean.(abs,getindex.(autocor(NUTSchain),Symbol("lag 1"))))
-println("Gelman: NUTS : $(mean(gelmandiag(NUTSchain)[:PSRF])), GibbsSampling : $(mean(gelmandiag(GSchain)[:PSRF]))")
-println("Heidel: NUTS : $(mean(mean.(getindex.(heideldiag(NUTSchain),Symbol("Burn-in"))))), GibbsSampling : $(mean(mean.(getindex.(heideldiag(GSchain),Symbol("Burn-in")))))")

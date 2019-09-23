@@ -4,7 +4,7 @@ include(joinpath(srcdir(),"intro.jl"))
 using AugmentedGaussianProcesses
 using MLDataUtils, DelimitedFiles
 
-res = collect_results(datadir("part_1","housing.csv"))
+res = collect_results(datadir("part_2","housing.csv"))
 results = vcat(res.analysis_results...)
 names(res.analysis_results[1])
 
