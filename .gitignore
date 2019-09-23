@@ -12,3 +12,4 @@ _research
 *.out
 ~$*
 tmp
+Manifest.toml
