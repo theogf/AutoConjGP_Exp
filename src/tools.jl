@@ -93,14 +93,32 @@ function convertall()
     for fold in class_folds
         files = readdir(joinpath(top_folder,"classification",fold))
         for f in files
-            csv2h5(joinpath(top_folder,"classification",fold,f),true)
+            try
+                csv2h5(joinpath(top_folder,"classification",fold,f),true)
+            catch e
+                if e isa AssertionError
+                    @warn "$f is not a .csv file"
+                    continue
+                else
+                    rethrow(e)
+                end
+            end
         end
     end
     reg_folds = readdir(joinpath(top_folder,"regression"))
     for fold in class_folds
         files = readdir(joinpath(top_folder,"regression",fold))
         for f in files
-            csv2h5(joinpath(top_folder,"regression",fold,f),false)
+            try
+                csv2h5(joinpath(top_folder,"regression",fold,f),false)
+            catch e
+                if e isa AssertionError
+                    @warn "$f is not a .csv file"
+                    continue
+                else
+                    rethrow(e)
+                end
+            end
         end
     end
 end
