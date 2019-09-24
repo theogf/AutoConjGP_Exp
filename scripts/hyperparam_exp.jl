@@ -4,13 +4,13 @@ include(joinpath(srcdir("intro.jl")))
 using AugmentedGaussianProcesses
 using MLDataUtils, DelimitedFiles
 using PyCall
-using StatsFuns
+using StatsFuns, SpecialFunctions
 gpflow = pyimport("gpflow")
 tf = pyimport("tensorflow")
 defaultdicthp = Dict(:nIterA=>30,:nIterVI=>100,
                     :file_name=>"housing",:kernel=>RBFKernel,
-                    :likelihood=>:Matern32GenMatern32Likelihood(),:flowlikelihood=>py"Matern32()", :AVI=>true,:VI=>true,:l=>1.0,:v=>10.0)
-nGrid = 10
+                    :likelihood=>:Matern32,:AVI=>true,:VI=>true,:l=>1.0,:v=>10.0)
+nGrid = 500
 list_l = 10.0.^(range(-2,2,length=nGrid))
 list_v = [0.01,0.1,1.0,10.0]
 alldicthp = Dict(:nIterA=>30,:nIterVI=>100,
@@ -45,7 +45,6 @@ function run_vi_exp_hp(dict::Dict=defaultdicthp)
     ker = ktype(l,variance=v)
     likelihood = dict[:likelihood]
     ll,flowll = like2like[likelihood]
-    flowll = dict[:flowlikelihood]
     kfold = 3
     nfold = 1
     doAVI = dict[:AVI]

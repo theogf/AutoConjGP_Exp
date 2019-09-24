@@ -7,7 +7,7 @@ glaplaceg(y) = 0.0
 βlaplace(y) = 2*y
 γlaplace(y) = 1.0
 φlaplace(r) = exp(-sqrt(r)/blaplace)
-∇φlaplace(r) = -exp(-sqrt(r)/b)/(2*b*sqrt(r))
+∇φlaplace(r) = -exp(-sqrt(r)/blaplace)/(2*blaplace*sqrt(r))
 lllaplace(y,x) = 1/(2b)*exp(-abs(y-x)/blaplace)
 AGP.@augmodel(GenLaplace,Regression,Claplace,glaplace,αlaplace,βlaplace, γlaplace, φlaplace, ∇φlaplace)
 Statistics.var(::GenLaplaceLikelihood) = 2*blaplace^2
