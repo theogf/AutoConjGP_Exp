@@ -6,11 +6,16 @@ using PyCall
 gpflow = pyimport("gpflow")
 tf = pyimport("tensorflow")
 
+
 defaultconvdict = Dict(:time_max=>1e4,:conv_max=>20,:file_name=>"covtype",
-                        :nInducing=>50,:nMinibatch=>10,:likelihood=>:Logistic,
+                        :nInducing=>200,:nMinibatch=>10,:likelihood=>:Logistic,
                         :doCAVI=>true,:doGD=>true,:doNGD=>true)
-problem_type = Dict("covtype"=>:classification,"heart"=>:classification,"HIGGS"=>:classification,"SUSY"=>:classification,
-                    "CASP"=>:regression)
+
+convdictlist = Dict(:time_max=>1e4,:conv_max=>20,:file_name=>"covtype",
+                        :nInducing=>[100,200,500],:nMinibatch=>[50,100,200],:likelihood=>:Logistic, :doCAVI=>true,:doGD=>true,:doNGD=>true)
+convdictlist = dict_list(convdictlist)
+
+problem_type = Dict("covtype"=>:classification,"heart"=>:classification,"HIGGS"=>:classification,"SUSY"=>:classification,"CASP"=>:regression)
 
 likelihood_GD = Dict(:Logistic=>py"BernoulliLogit()",:Matern32=>py"Matern32()",
     :Laplace=>py"Laplace()",:StudentT=>py"gpflow.likelihoods.StudentT(3.0)")
@@ -76,7 +81,7 @@ function convergence_exp(dict::Dict=defaultconvdict)
             GD_kernel = gpflow.kernels.RBF(nDim,lengthscales=l,ARD=true)
             global model = gpflow.models.SVGP(X, Float64.(reshape(y,(length(y),1))),kern=deepcopy(GD_kernel),likelihood=likelihood_GD[likelihood],num_latent=1,Z=Z,minibatch_size=nMinibatch)
             try
-                run_nat_grads_with_adam(model,nIter,X_test,y_test,LogArrays,callback=cbgd)
+                run_nat_grads_with_adam(model,nIter,X_test,y_test,LogArrays,callback=cbgd,time_max=tMax,kernel_fixed=false)
             catch e
                 if !isa(e,InterruptException)
                     rethrow(e)
@@ -93,7 +98,7 @@ function convergence_exp(dict::Dict=defaultconvdict)
             GD_kernel = gpflow.kernels.RBF(nDim,lengthscales=l,ARD=true)
             model = gpflow.models.SVGP(X, Float64.(reshape(y,(length(y),1))),kern=deepcopy(GD_kernel),likelihood=likelihood_GD[likelihood],num_latent=1,Z=Z,minibatch_size=nMinibatch)
             try
-                run_nat_grads_with_adam(model,nIter,X_test,y_test,LogArrays,callback=cbgd)
+                run_nat_grads_with_adam(model,nIter,X_test,y_test,LogArrays,callback=cbgd,time_max=tMax,kernel_fixed=false)
             catch e
                 if !isa(e,InterruptException)
                     rethrow(e)

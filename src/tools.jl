@@ -7,7 +7,7 @@ function initial_lengthscale(X)
     return sqrt(mean([D[i,j] for i in 2:size(D,1) for j in 1:(i-1)]))
 end
 
-function run_nat_grads_with_adam(model,iterations,X_test,y_test,LogArrays; ind_points_fixed=true, kernel_fixed =false, callback=nothing , Stochastic = true)
+function run_nat_grads_with_adam(model,iterations,X_test,y_test,LogArrays; ind_points_fixed=true, kernel_fixed =false, callback=nothing , Stochastic = true,time_max=Inf)
     # we'll make use of this later when we use a XiTransform
 
     gamma_start = 1e-5;
@@ -38,7 +38,7 @@ function run_nat_grads_with_adam(model,iterations,X_test,y_test,LogArrays; ind_p
     if !(ind_points_fixed && kernel_fixed)
         op_adam = gpflow.train.AdamOptimizer().make_optimize_tensor(model)
     end
-
+    time_init = time()
     for i in 1:(iterations)
         try
             sess.run(op_natgrad);sess.run(op_increment_gamma)
@@ -57,6 +57,10 @@ function run_nat_grads_with_adam(model,iterations,X_test,y_test,LogArrays; ind_p
         end
         if i % 10 == 0
             println("$i gamma=$(sess.run(gamma)) ELBO=$(sess.run(model.likelihood_tensor))")
+            if time()-time_init > time_max
+                @info "Stopped training cause time limit $time_max s is reached "
+                break;
+            end
         end
         if callback!= nothing
             callback(model,sess,i,X_test,y_test,LogArrays)
@@ -65,7 +69,7 @@ function run_nat_grads_with_adam(model,iterations,X_test,y_test,LogArrays; ind_p
     model.anchor(sess)
 end
 
-function run_grads_with_adam(model,iterations,X_test,y_test,LogArrays; ind_points_fixed=true, kernel_fixed =true, callback=nothing , Stochastic = true)
+function run_grads_with_adam(model,iterations,X_test,y_test,LogArrays; ind_points_fixed=true, kernel_fixed =true, time_max=Inf, callback=nothing , Stochastic = true)
     # we'll make use of this later when we use a XiTransform
 
     sess = model.enquire_session();
@@ -77,6 +81,10 @@ function run_grads_with_adam(model,iterations,X_test,y_test,LogArrays; ind_point
         sess.run(op_adam)
         if i % 100 == 0
             println("$i ELBO=$(sess.run(model.likelihood_tensor))")
+            if time()-time_init > time_max
+                @info "Stopped training cause time limit $time_max s is reached "
+                break;
+            end
         end
         if callback!= nothing
             callback(model,sess,i,X_test,y_test,LogArrays)
