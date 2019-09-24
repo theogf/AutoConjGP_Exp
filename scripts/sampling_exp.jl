@@ -74,7 +74,6 @@ function sample_exp(dict=defaultdictsamp)
     L = Matrix(cholesky(K).L)
     burnin=1
     β = 1.0
-    !isdir(datadir("part_1",string(likelihood))) ? mkdir(datadir("part_1",string(likelihood))) : nothing
     all_chains = []
     times = []
     params_samp = @ntuple(nSamples)
@@ -85,7 +84,7 @@ function sample_exp(dict=defaultdictsamp)
         times_Gibbs = []
         for i in 1:nChains
             @info "Gibbs chain $i/$nChains"
-            amodel = VGP(X,y,kernel,likelihood2gibbs[likelihood],GibbsSampling(samplefrequency=1,nBurnin=0),verbose=0,optimizer=false)
+            amodel = VGP(X,y,kernel,likelihood2gibbs[likelihood],GibbsSampling(samplefrequency=1,nBurnin=0),verbose=2,optimizer=false)
             t = @elapsed train!(amodel,iterations=nSamples+1)
             GSsamples[:,:,i] = transpose(hcat(amodel.inference.sample_store[1]...))
             push!(times_Gibbs,t)

@@ -1,18 +1,18 @@
+using DrWatson
+quickactivate(joinpath(@__DIR__,".."))
+include(joinpath(srcdir("intro.jl")))
 using AugmentedGaussianProcesses
 using MLDataUtils, DelimitedFiles
-using DrWatson
 using PyCall
 using StatsFuns
 gpflow = pyimport("gpflow")
 tf = pyimport("tensorflow")
-quickactivate(joinpath(@__DIR__,".."))
-include(joinpath(srcdir(),"intro.jl"))
 defaultdicthp = Dict(:nIterA=>30,:nIterVI=>100,
                     :file_name=>"housing.csv",:kernel=>RBFKernel,
                     :likelihood=>GenMatern32Likelihood(),:flowlikelihood=>py"Matern32()", :AVI=>true,:VI=>true,:l=>1.0,:v=>10.0)
-nGrid = 100
-list_l = 10.0.^(range(-1,2,length=nGrid))
-list_v = 1.0
+nGrid = 10
+list_l = 10.0.^(range(-2,2,length=nGrid))
+list_v = [0.01,0.1,1.0,10.0]
 alldicthp = Dict(:nIterA=>30,:nIterVI=>100,
                     :file_name=>"housing.csv",:kernel=>RBFKernel,
                     :likelihood=>GenMatern32Likelihood(),
