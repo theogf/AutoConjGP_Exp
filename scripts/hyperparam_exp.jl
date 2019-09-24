@@ -81,7 +81,7 @@ function run_vi_exp_hp(dict::Dict=defaultdicthp)
                 # vimodel = VGP(X_train,y_tr/ain,ker,ll,QuadratureVI(),verbose=2,optimizer=false)
                 # train!(vimodel,iterations=nIterVI)
                 global vimodel = gpflow.models.VGP(X_train,y_train,kern=flowkernel,likelihood=flowll,num_latent=1)
-                run_nat_grads_with_adam(vimodel,nIterVI,Stochastic=false)
+                run_nat_grads_with_adam(vimodel,nIterVI,X_test,y_test,[],Stochastic=false)
                 y_vi,sig_vi = proba_y(vimodel,X_test)
                 sess = vimodel.enquire_session();
                 predic_results = hcat(predic_results,DataFrame([y_vi,sig_vi],[:y_vi,:sig_vi]))
