@@ -19,7 +19,7 @@ alldicthp = Dict(:nIterA=>30,:nIterVI=>100,
                     :flowlikelihood=>py"Matern32()",
                     :AVI=>true,:VI=>true,:l=>list_l,:v=>list_v)
 listdict_hp = dict_list(alldicthp)
-problem_type = Dict("covtype"=>:classification,"heart"=>:classification,"HIGGS"=>:classification,"SUSY"=>:classification,"CASP"=>:regression)
+problem_type = Dict("covtype"=>:classification,"heart"=>:classification,"HIGGS"=>:classification,"SUSY"=>:classification,"CASP"=>:regression,"housing"=>:regression)
 
 
 
