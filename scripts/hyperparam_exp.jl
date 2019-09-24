@@ -9,18 +9,17 @@ gpflow = pyimport("gpflow")
 tf = pyimport("tensorflow")
 defaultdicthp = Dict(:nIterA=>30,:nIterVI=>100,
                     :file_name=>"housing",:kernel=>RBFKernel,
-                    :likelihood=>GenMatern32Likelihood(),:flowlikelihood=>py"Matern32()", :AVI=>true,:VI=>true,:l=>1.0,:v=>10.0)
+                    :likelihood=>:Matern32GenMatern32Likelihood(),:flowlikelihood=>py"Matern32()", :AVI=>true,:VI=>true,:l=>1.0,:v=>10.0)
 nGrid = 10
 list_l = 10.0.^(range(-2,2,length=nGrid))
 list_v = [0.01,0.1,1.0,10.0]
 alldicthp = Dict(:nIterA=>30,:nIterVI=>100,
                     :file_name=>"housing",:kernel=>RBFKernel,
-                    :likelihood=>GenMatern32Likelihood(),
-                    :flowlikelihood=>py"Matern32()",
+                    :likelihood=>:Matern32,
                     :AVI=>true,:VI=>true,:l=>list_l,:v=>list_v)
 listdict_hp = dict_list(alldicthp)
 problem_type = Dict("covtype"=>:classification,"heart"=>:classification,"HIGGS"=>:classification,"SUSY"=>:classification,"CASP"=>:regression,"housing"=>:regression)
-
+like2like = Dict(:Matern32=>(GenMatern32Likelihood(),py"Matern32()"),:Laplace=>(GenLaplaceLikelihood(),py"Laplace()"),:StudentT=>(GenStudentTLikelihood(),py"gpflow.likelihoods.StudentT()"),:Logistic=>(GenLogisticLikelihood(),py"BernoulliLogit()"))
 
 
 ##
@@ -44,7 +43,8 @@ function run_vi_exp_hp(dict::Dict=defaultdicthp)
     v = dict[:v]
     flowkernel = gpflow.kernels.RBF(nDim,lengthscales=l,variance=v,ARD=false)
     ker = ktype(l,variance=v)
-    ll = dict[:likelihood]
+    likelihood = dict[:likelihood]
+    ll,flowll = like2like[likelihood]
     flowll = dict[:flowlikelihood]
     kfold = 3
     nfold = 1
@@ -104,7 +104,6 @@ function run_vi_exp_hp(dict::Dict=defaultdicthp)
     end
     diff_elbo = elbo_vi - elbo_a
     analysis_results = DataFrame([[l],[v],[nameof(typeof(ll))],[elbo_a],[elbo_vi],[diff_elbo],[metric_a],[metric_vi],[nll_a],[nll_vi]],[:LENGTHSCALE,:VARIANCE,:LIKELIHOOD,:ELBO_A,:ELBO_VI,:DIFF_ELBO,:METRIC_A,:METRIC_VI,:NLL_A,:NLL_VI])
-    likelihood = nameof(typeof(ll))
     params = @ntuple(likelihood,l,v)
     @tagsave(
         datadir("part_2",file_name,savename(params,"bson")),
