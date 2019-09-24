@@ -8,18 +8,18 @@ using StatsFuns
 gpflow = pyimport("gpflow")
 tf = pyimport("tensorflow")
 defaultdicthp = Dict(:nIterA=>30,:nIterVI=>100,
-                    :file_name=>"housing.csv",:kernel=>RBFKernel,
+                    :file_name=>"housing",:kernel=>RBFKernel,
                     :likelihood=>GenMatern32Likelihood(),:flowlikelihood=>py"Matern32()", :AVI=>true,:VI=>true,:l=>1.0,:v=>10.0)
 nGrid = 10
 list_l = 10.0.^(range(-2,2,length=nGrid))
 list_v = [0.01,0.1,1.0,10.0]
 alldicthp = Dict(:nIterA=>30,:nIterVI=>100,
-                    :file_name=>"housing.csv",:kernel=>RBFKernel,
+                    :file_name=>"housing",:kernel=>RBFKernel,
                     :likelihood=>GenMatern32Likelihood(),
                     :flowlikelihood=>py"Matern32()",
                     :AVI=>true,:VI=>true,:l=>list_l,:v=>list_v)
 listdict_hp = dict_list(alldicthp)
-
+problem_type = Dict("covtype"=>:classification,"heart"=>:classification,"HIGGS"=>:classification,"SUSY"=>:classification,"CASP"=>:regression)
 
 
 
@@ -29,7 +29,10 @@ function run_vi_exp_hp(dict::Dict=defaultdicthp)
     nIterA = dict[:nIterA];
     nIterVI = dict[:nIterVI];
     file_name = dict[:file_name];
-    data = readdlm(joinpath(datadir(),"exp_raw/"*file_name),',');
+    problem=  problem_type[file_name]
+    base_file = datadir("datasets",string(problem),"small",file_name)
+    ## Load and preprocess the data
+    data = isfile(base_file*".h5") ? h5read(base_file*".h5","data") : Matrix(CSV.read(base_file*".csv",header=false))
     y = data[:,1]; X = data[:,2:end]; (N,nDim) = size(X)
     rescale!(X,obsdim=1);
     if length(unique(y))!=2
