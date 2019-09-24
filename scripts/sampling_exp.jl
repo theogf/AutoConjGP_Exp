@@ -30,8 +30,8 @@ end
     end
 end
 
-defaultdictsamp = Dict(:nChains=>2,:nSamples=>100,:file_name=>"housing",
-                    :likelihood=>:StudentT,
+defaultdictsamp = Dict(:nChains=>5,:nSamples=>10000,:file_name=>"heart",
+                    :likelihood=>:Logistic,
                     :doHMC=>true,:doMH=>true,:doNUTS=>!true,:doGibbs=>true)
 
 
@@ -101,10 +101,10 @@ function sample_exp(dict=defaultdictsamp)
         @info "Starting chains of HMC"
         times_HMC = []
         HMCchains = []
-        epsilon = 0.36; n_step = 2
+        epsilon = 0.1; n_step = 5
         for i in 1:nChains
             @info "Turing chain $i/$nChains"
-            t = @elapsed HMCchain = sample(likelihood2turing[likelihood](X,y_turing,L), HMC(epsilon,n_step),nSamples)
+            t = @elapsed HMCchain = sample(likelihood2turing[likelihood](X,y_turing,L), HMC(nSamples,epsilon,n_step))
             push!(HMCchains,HMCchain)
             push!(times_HMC,t)
         end
@@ -124,7 +124,7 @@ function sample_exp(dict=defaultdictsamp)
         accept = 0.2
         for i in 1:nChains
             @info "Turing chain $i/$nChains"
-            t = @elapsed NUTSchain = sample(likelihood2turing[likelihood](X,y_turing,L), NUTS(n_adapt,accept),nSamples+n_adapt)
+            t = @elapsed NUTSchain = sample(likelihood2turing[likelihood](X,y_turing,L), NUTS(nSamples,n_adapt,accept))
             push!(NUTSchains,NUTSchain)
             push!(times_NUTS,t)
         end
@@ -142,7 +142,7 @@ function sample_exp(dict=defaultdictsamp)
         MHchains = []
         for i in 1:nChains
             @info "Turing chain $i/$nChains"
-            t = @elapsed MHchain = sample(likelihood2turing[likelihood](X,y_turing,L), MH(),nSamples)
+            t = @elapsed MHchain = sample(likelihood2turing[likelihood](X,y_turing,L), MH(nSamples))
             push!(MHchains,MHchain)
             push!(times_MH,t)
         end
