@@ -3,9 +3,8 @@ quickactivate(joinpath("..",@__DIR__))
 include(joinpath(srcdir(),"intro.jl"))
 using Turing, MCMCChains
 using AugmentedGaussianProcesses
-using MLDataUtils, CSV, StatsFuns
+using MLDataUtils, CSV, StatsFuns, HDF5
 Turing.setadbackend(:reverse_diff)
-Turing.setadbackend(:forward_diff)
 
 @model laplacemodel(x,y,L) = begin
     z ~ MvNormal(zeros(length(y)),I)
@@ -31,7 +30,7 @@ end
     end
 end
 
-defaultdictsamp = Dict(:nChains=>2,:nSamples=>100,:file_name=>"housing.csv",
+defaultdictsamp = Dict(:nChains=>2,:nSamples=>100,:file_name=>"housing",
                     :likelihood=>:StudentT,
                     :doHMC=>true,:doMH=>true,:doNUTS=>!true,:doGibbs=>true)
 
@@ -52,7 +51,10 @@ function sample_exp(dict=defaultdictsamp)
     doNUTS = dict[:doNUTS]
     doMH = dict[:doMH]
     likelihood = dict[:likelihood]
-    data = Matrix(CSV.read(joinpath(datadir(),"datasets",string(likelihood2ptype[likelihood]),"small",file_name),header=false))
+    base_file = datadir("datasets",string(likelihood2ptype[likelihood]),"small",file_name)
+
+    ## Load and preprocess the data
+    data = isfile(base_file*".h5") ? h5read(base_file*".h5","data") : Matrix(CSV.read(base_file*".csv",header=false))
     y = data[:,1]; X = data[:,2:end]; (N,nDim) = size(X)
     rescale!(X,obsdim=1)
     l = initial_lengthscale(X)
