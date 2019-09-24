@@ -3,35 +3,24 @@ quickactivate(joinpath("..",@__DIR__))
 include(joinpath(srcdir(),"intro.jl"))
 using AugmentedGaussianProcesses
 using MLDataUtils, DelimitedFiles
+using DataFramesMeta
+using LaTeXStrings
+using Plots; pyplot()
 
-res = collect_results(datadir("part_2","housing.csv"))
+metric_name = Dict("Matern32"=>"RMSE","StudentT"=>"RMSE","Laplace"=>"RMSE","Logistic"=>"Accuracy")
+
+file_name = "heart"
+likelihood = "Logistic"
+variance = 0.01
+res = collect_results(datadir("part_2",file_name))
 results = vcat(res.analysis_results...)
-names(res.analysis_results[1])
-
-results.ELBO_VI[results.ELBO_VI.==-Inf] .= 0
-
-
-if Sys.CPU_NAME == "skylake"
-    using Plots
-    heatmap(log10.(list_l),log10.(list_v),reshape(results.ELBO_A,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="ELBO Augmented")
-    heatmap(log10.(list_l),log10.(list_v),reshape(results.ELBO_VI,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="ELBO Classic")
-    heatmap(log10.(list_l),log10.(list_v),reshape(results.METRIC_A,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="Metric Augmented")
-    heatmap(log10.(list_l),log10.(list_v),reshape(results.METRIC_VI,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="Metric Classic")
-    heatmap(log10.(list_l),log10.(list_v),reshape(results.NLL_A,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="NLL Augmented")
-    heatmap(log10.(list_l),log10.(list_v),reshape(results.NLL_VI,nGrid,nGrid),xlabel="log lengthscale",ylabel="log variance",title="NLL Classic")
-    function merge_results(results::Vector{DataFrame})
-        n = length(results)
-        if n ==1
-            return results[1]
-        else
-            colnames = names(results[1])
-            m_results = DataFrame()
-            for colname in colnames
-                m = mean(results[i][colname] for i in 1:n)
-                v= var.(eachrow(hcat([results[i][colname] for i in 1:n]...)))
-                m_results = hcat(m_results,DataFrame([m,v],[Symbol(colname,"_μ"),Symbol(colname,"_σ")]))
-            end
-            return m_results
-        end
-    end
-end
+results = @linq results |> where(:LIKELIHOOD .== Symbol("Gen",likelihood,"Likelihood")) |> where(:VARIANCE .== 0.01) |> where(:ELBO_VI .!= NaN )
+s = sortperm(results.LENGTHSCALE)
+default(lw=3.0,legendfontsize=15.0)
+p_ELBO = plot(log10.(results.LENGTHSCALE[s]),-results.ELBO_A[s],xlabel=L"\theta",ylabel="Negative ELBO",lab="Augmented VI")
+plot!(log10.(results.LENGTHSCALE[s]),-results.ELBO_VI[s],lab="VI")
+p_METRIC = plot(log10.(results.LENGTHSCALE[s]),results.METRIC_A[s],xlabel=L"\theta",ylabel=metric_name[likelihood],lab="Augmented VI")
+plot!(log10.(results.LENGTHSCALE[s]),results.METRIC_VI[s],lab="VI")
+p_NLL = plot(log10.(results.LENGTHSCALE[s]),results.NLL_A[s],xlabel=L"\theta",ylabel="Negative Log Likelihood",lab="Augmented VI")
+plot!(log10.(results.LENGTHSCALE[s]),results.NLL_VI[s],lab="VI")
+plot(p_ELBO,p_METRIC,p_NLL)

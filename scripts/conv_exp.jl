@@ -7,11 +7,11 @@ gpflow = pyimport("gpflow")
 tf = pyimport("tensorflow")
 
 
-defaultconvdict = Dict(:time_max=>1e4,:conv_max=>20,:file_name=>"covtype",
+defaultconvdict = Dict(:time_max=>1e4,:conv_max=>200,:file_name=>"heart",
                         :nInducing=>200,:nMinibatch=>10,:likelihood=>:Logistic,
-                        :doCAVI=>true,:doGD=>true,:doNGD=>true)
+                        :doCAVI=>!true,:doGD=>true,:doNGD=>!true)
 
-convdictlist = Dict(:time_max=>1e4,:conv_max=>20,:file_name=>"covtype",
+convdictlist = Dict(:time_max=>1e4,:conv_max=>1e4,:file_name=>"covtype",
                         :nInducing=>[100,200,500],:nMinibatch=>[50,100,200],:likelihood=>:Logistic, :doCAVI=>true,:doGD=>true,:doNGD=>true)
 convdictlist = dict_list(convdictlist)
 
@@ -27,7 +27,7 @@ dict = defaultconvdict
 function convergence_exp(dict::Dict=defaultconvdict)
     file_name = dict[:file_name]
     problem = problem_type[file_name]
-    base_file = datadir("datasets",string(problem),"large",file_name)
+    base_file = datadir("datasets",string(problem),"small",file_name)
 
     ## Load and preprocess the data
     data = isfile(base_file*".h5") ? h5read(base_file*".h5","data") : Matrix(CSV.read(base_file*".csv",header=false))
@@ -41,6 +41,7 @@ function convergence_exp(dict::Dict=defaultconvdict)
         rescale!(y,obsdim=1)
     end
     l = initial_lengthscale(X)
+    @info "Loaded data and initialized lengthscale : $l"
     CAVI_kernel = RBFKernel(l,variance=1.0,dim=nDim)
     ## Get simulation parameters
     doCAVI = dict[:doCAVI]
@@ -52,8 +53,16 @@ function convergence_exp(dict::Dict=defaultconvdict)
     nMinibatch = dict[:nMinibatch]
     nInducing = dict[:nInducing]
     Z = AugmentedGaussianProcesses.KMeansInducingPoints(X,nInducing,nMarkov=10)
+    N_test_max = 10000
+    @info "Created inducing points location matrix"
     params = @ntuple(likelihood,nMinibatch,nInducing,nIter)
     for ((X_train,y_train),(X_test,y_test)) in kfolds((X,y),10,obsdim=1)
+
+        if length(y_test) > N_test_max
+            subset = sample(1:length(y_test),N_test_max,replace=false)
+            X_test = X_test[subset,:]
+            y_test = y_test[subset,:]
+        end
         ## Run Augmented
         if doCAVI
             @info "Training CAVI"
@@ -63,6 +72,7 @@ function convergence_exp(dict::Dict=defaultconvdict)
             @info "Finished pre-training"
                 model = SVGP(X,y,CAVI_kernel,likelihood_CAVI[likelihood],AnalyticSVI(nMinibatch),nInducing)
             model.Z[1] = Z
+            t_first = time_ns()
             try
                 train!(model,iterations=nIter,callback=cbcavi(X_test,y_test,LogArrays))
             catch  e
@@ -71,7 +81,9 @@ function convergence_exp(dict::Dict=defaultconvdict)
                 end
             end
             training_df = DataFrame(hcat(LogArrays...)',[:i,:t_init,:metric,:nll,:ELBO,:t_end])
-            @tagsave(datadir("part_3",file_name,savename("CAVI",params,"bson")),@dict training_df
+            results = DataFrame([[:CAVI],[likelihood],[nInducing],[nMinibatch],[t_first],[training_df]],[:model,:likelihood,:nInducing,:nMinibatch,:t_first,:training_df])
+
+            @tagsave(datadir("part_3",file_name,savename("CAVI",params,"bson")),@dict results
                     )
         end
         ## Run NGD
@@ -80,6 +92,7 @@ function convergence_exp(dict::Dict=defaultconvdict)
             LogArrays = []
             GD_kernel = gpflow.kernels.RBF(nDim,lengthscales=l,ARD=true)
             global model = gpflow.models.SVGP(X, Float64.(reshape(y,(length(y),1))),kern=deepcopy(GD_kernel),likelihood=likelihood_GD[likelihood],num_latent=1,Z=Z,minibatch_size=nMinibatch)
+            t_first = time_ns()
             try
                 run_nat_grads_with_adam(model,nIter,X_test,y_test,LogArrays,callback=cbgd,time_max=tMax,kernel_fixed=false)
             catch e
@@ -88,28 +101,32 @@ function convergence_exp(dict::Dict=defaultconvdict)
                 end
             end
             training_df = DataFrame(hcat(LogArrays...)',[:i,:t_init,:metric,:nll,:ELBO,:t_end])
-            @tagsave(datadir("part_3",file_name,savename("NGD",params,"bson")),@dict training_df
+            results = DataFrame([[:NGD],[likelihood],[nInducing],[nMinibatch],[t_first],[training_df]],[:model,:likelihood,:nInducing,:nMinibatch,:t_first,:training_df])
+            @tagsave(datadir("part_3",file_name,savename("NGD",params,"bson")),@dict results
                     )
         end
         ## Run GD
         if doGD
-            @info "Training NGD"
+            @info "Training GD"
             LogArrays = []
             GD_kernel = gpflow.kernels.RBF(nDim,lengthscales=l,ARD=true)
             model = gpflow.models.SVGP(X, Float64.(reshape(y,(length(y),1))),kern=deepcopy(GD_kernel),likelihood=likelihood_GD[likelihood],num_latent=1,Z=Z,minibatch_size=nMinibatch)
+            t_first = time_ns()
             try
-                run_nat_grads_with_adam(model,nIter,X_test,y_test,LogArrays,callback=cbgd,time_max=tMax,kernel_fixed=false)
+                run_grads_with_adam(model,nIter,X_test,y_test,LogArrays,callback=cbgd,time_max=tMax,kernel_fixed=false)
             catch e
                 if !isa(e,InterruptException)
                     rethrow(e)
                 end
             end
             training_df = DataFrame(hcat(LogArrays...)',[:i,:t_init,:metric,:nll,:ELBO,:t_end])
-            @tagsave(datadir("part_3",file_name,savename("GD",params,"bson")),@dict training_df
+            results = DataFrame([[:GD],[likelihood],[nInducing],[nMinibatch],[t_first],[training_df]],[:model,:likelihood,:nInducing,:nMinibatch,:t_first,:training_df])
+            @tagsave(datadir("part_3",file_name,savename("GD",params,"bson")),@dict results
                     )
         end
         break;
     end
 end
 
-convergence_exp()
+# convergence_exp()
+map(convergence_exp,convdictlist)

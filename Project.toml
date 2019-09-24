@@ -3,6 +3,7 @@ name = "AutoConjugate"
 [deps]
 BSON = "fbb218c0-5317-5bc6-957e-2ee96dd4b1f0"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+DataFramesMeta = "1313f7d8-7da2-5740-9ea0-a2ca25f37964"
 DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
 ExtremeStats = "bda1af87-e1f1-54ef-ae32-d9c31cb662a2"
 FastGaussQuadrature = "442a2c76-b920-505d-bb47-c5924d526838"

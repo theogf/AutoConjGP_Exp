@@ -73,10 +73,16 @@ function run_grads_with_adam(model,iterations,X_test,y_test,LogArrays; ind_point
     # we'll make use of this later when we use a XiTransform
 
     sess = model.enquire_session();
-    isdefined(model.feature) ? (ind_points_fixed ? model.feature.set_trainable(false) : nothing) : nothing
+    try
+        ind_points_fixed ? model.feature.set_trainable(false) : nothing
+    catch e
+        if !isa(e,KeyError)
+            rethrow(e)
+        end
+    end
     kernel_fixed ? model.kern.set_trainable.(false) : nothing
     op_adam = gpflow.train.AdamOptimizer.().make_optimize_tensor(model)
-
+    time_init = time()
     for i in 1:(iterations)
         sess.run(op_adam)
         if i % 100 == 0
@@ -139,7 +145,7 @@ function cbcavi(X_test,y_test,LogArrays)
             a = Vector{Any}(undef,6)
             a[2] = time_ns()
             a[1] = iter
-            @info "iter $i"
+            @info "iter $iter"
             AugmentedGaussianProcesses.computeMatrices!(model)
             y_p,sig_p = proba_y(model,X_test)
             a[3] = testmetric(model,y_test,y_p)
@@ -156,7 +162,7 @@ function cbgd(model,session,iter,X_test,y_test,LogArrays)
           a = Vector{Any}(undef,6)
           a[2] = time_ns()
           a[1] = iter
-          @info "iter $i"
+          @info "iter $iter"
           y_p = model.predict_y(X_test)[1]
           a[3] = testmetric(model,y_test,y_p)
           a[4] = testloglikelihood(model,y_test,y_p)
