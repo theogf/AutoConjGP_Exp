@@ -32,7 +32,7 @@ function unfold_chains(results::DataFrame)
         nChains = nTot/nSamples
         global fold_chains = []
         for j in 1:nChains
-            push!(fold_chains,res.chains[i][Int64.(((j-1)*nSamples+1):(j*nSamples)),:])
+            push!(fold_chains,Chains(reshape(Matrix(res.chains[i][Int64.(((j-1)*nSamples+1):(j*nSamples)),:]),nSamples,:,1)))
         end
         push!(unf_chains,chainscat(fold_chains...))
     end

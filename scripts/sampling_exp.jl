@@ -5,6 +5,7 @@ using Turing, MCMCChains
 using AugmentedGaussianProcesses
 using MLDataUtils, CSV, StatsFuns
 Turing.setadbackend(:reverse_diff)
+Turing.setadbackend(:forward_diff)
 
 @model laplacemodel(x,y,L) = begin
     z ~ MvNormal(zeros(length(y)),I)
@@ -26,13 +27,15 @@ end
     z ~ MvNormal(zeros(length(y)),I)
     f = L*z
     for i in 1:size(x,1)
-        y[i] ~ LocationScale(f[i],1.0,TDist(ν))
+        y[i] ~ LocationScale(f[i],one(f[i]),TDist(ν))
     end
 end
 
-defaultdictsamp = Dict(:nChains=>2,:nSamples=>100,:file_name=>"heart.csv",
-                    :likelihood=>:Logistic,
+defaultdictsamp = Dict(:nChains=>2,:nSamples=>100,:file_name=>"housing.csv",
+                    :likelihood=>:StudentT,
                     :doHMC=>true,:doMH=>true,:doNUTS=>!true,:doGibbs=>true)
+
+
 ν = 3.0
 β_l = 1.0
 likelihood2gibbs = Dict(:Logistic=>LogisticLikelihood(),:Laplace=>LaplaceLikelihood(β_l),:StudentT=>StudentTLikelihood(ν))
@@ -100,7 +103,7 @@ function sample_exp(dict=defaultdictsamp)
         epsilon = 0.36; n_step = 2
         for i in 1:nChains
             @info "Turing chain $i/$nChains"
-            t = @elapsed HMCchain = sample(likelihood2turing[likelihood](X,y_turing,L), HMC(nSamples,epsilon,n_step))
+            t = @elapsed HMCchain = sample(likelihood2turing[likelihood](X,y_turing,L), HMC(epsilon,n_step),nSamples)
             push!(HMCchains,HMCchain)
             push!(times_HMC,t)
         end
@@ -120,7 +123,7 @@ function sample_exp(dict=defaultdictsamp)
         accept = 0.2
         for i in 1:nChains
             @info "Turing chain $i/$nChains"
-            t = @elapsed NUTSchain = sample(likelihood2turing[likelihood](X,y_turing,L), NUTS(nSamples,n_adapt,accept))
+            t = @elapsed NUTSchain = sample(likelihood2turing[likelihood](X,y_turing,L), NUTS(n_adapt,accept),nSamples+n_adapt)
             push!(NUTSchains,NUTSchain)
             push!(times_NUTS,t)
         end
@@ -138,7 +141,7 @@ function sample_exp(dict=defaultdictsamp)
         MHchains = []
         for i in 1:nChains
             @info "Turing chain $i/$nChains"
-            t = @elapsed MHchain = sample(likelihood2turing[likelihood](X,y_turing,L), MH(nSamples))
+            t = @elapsed MHchain = sample(likelihood2turing[likelihood](X,y_turing,L), MH(),nSamples)
             push!(MHchains,MHchain)
             push!(times_MH,t)
         end
