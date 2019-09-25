@@ -7,11 +7,11 @@ gpflow = pyimport("gpflow")
 tf = pyimport("tensorflow")
 
 
-defaultconvdict = Dict(:time_max=>1e4,:conv_max=>200,:file_name=>"heart",
-                        :nInducing=>200,:nMinibatch=>10,:likelihood=>:Logistic,
+defaultconvdict = Dict(:time_max=>1e4,:conv_max=>200,:file_name=>"CASP",
+                        :nInducing=>200,:nMinibatch=>10,:likelihood=>:StudentT,
                         :doCAVI=>!true,:doGD=>true,:doNGD=>!true)
 
-convdictlist = Dict(:time_max=>1e4,:conv_max=>1e4,:file_name=>"covtype",
+convdictlist = Dict(:time_max=>1e4,:conv_max=>10000,:file_name=>"covtype",
                         :nInducing=>[100,200,500],:nMinibatch=>[50,100,200],:likelihood=>:Logistic, :doCAVI=>true,:doGD=>true,:doNGD=>true)
 convdictlist = dict_list(convdictlist)
 
@@ -27,7 +27,7 @@ dict = defaultconvdict
 function convergence_exp(dict::Dict=defaultconvdict)
     file_name = dict[:file_name]
     problem = problem_type[file_name]
-    base_file = datadir("datasets",string(problem),"small",file_name)
+    base_file = datadir("datasets",string(problem),"large",file_name)
 
     ## Load and preprocess the data
     data = isfile(base_file*".h5") ? h5read(base_file*".h5","data") : Matrix(CSV.read(base_file*".csv",header=false))

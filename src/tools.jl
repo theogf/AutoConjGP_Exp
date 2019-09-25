@@ -123,7 +123,7 @@ function testloglikelihood(model::AbstractGP,y_test,y_predic)
     if isa(model.likelihood,ClassificationLikelihood)
         return mean(vcat(log.(max.(y_predic[y_test.==1],1e-8)),log.(max.(1.0.-y_predic[y_test.==-1],1e-8))))
     elseif isa(model.likelihood,RegressionLikelihood)
-        return mean(logpdf.(model.likelihood,y_test,y_predic))
+        return mean(AGP.logpdf.(model.likelihood,y_test,y_predic))
     else
         @error "Likelihood not recognized"
     end
@@ -133,7 +133,9 @@ function testloglikelihood(model::PyObject,y_test,y_predic)
     if likelihood2problem[model.likelihood.name] == :classification
         return mean(vcat(log.(max.(y_predic[y_test.==1],1e-8)),log.(max.(1.0.-y_predic[y_test.==-1],1e-8))))
     elseif likelihood2problem[model.likelihood.name] == :regression
-        return mean(model.likelihood.logp(y_test,y_predic))
+        sess = model.enquire_session();
+        logp = diag(sess.run(model.likelihood.logp(y_test,y_predic)))
+        return mean(logp)
     else
         @error "Likelihood not recognized"
     end
