@@ -5,36 +5,31 @@ using Turing, MCMCChains
 using AugmentedGaussianProcesses
 using MLDataUtils, CSV, StatsFuns
 
-likelihood_name = "Logistic"
+likelihood_name = "Laplace"
+nSamples = 10000
+
 
 res = collect_results(datadir("part_1",likelihood_name))
-res[1]
+infos = vcat(res.infos...)
+valid = findall(x->x==nSamples,infos.nSamples)
+chains = unfold_chains.(view(res.chains,valid),nSamples)
+
 function treat_chain(chain)
     burnin = mean(mean.(getindex.(heideldiag(chain),Symbol("Burn-in"))))
     gelman = mean(gelmandiag(chain)[:PSRF])
     acorlag1 = mean(mean.(abs,getindex.(autocor(chain),Symbol("lag 1"))))
-    return burnin, gelman, acorlag1
+    acorlag5 = mean(mean.(abs,getindex.(autocor(chain),Symbol("lag 5"))))
+    return DataFrame([[acorlag1], [acorlag5],[burnin], [gelman], ],[:lag1,:lag5,:mixtime,:gelman])
 end
-treat_chain.(chains)
-mean(mean.(getindex.(heideldiag(NUTSchain),Symbol("Burn-in"))))
-## Diagnostics
-mean(mean.(abs,getindex.(autocor(NUTSchain),Symbol("lag 1"))))
-println("Gelman: NUTS : $(mean(gelmandiag(NUTSchain)[:PSRF])), GibbsSampling : $(mean(gelmandiag(GSchain)[:PSRF]))")
-println("Heidel: NUTS : $(mean(mean.(getindex.(heideldiag(NUTSchain),Symbol("Burn-in"))))), GibbsSampling : $(mean(mean.(getindex.(heideldiag(GSchain),Symbol("Burn-in")))))")
+results_analysis = vcat(treat_chain.(chains)...)
+results_analysis= hcat(infos.alg[valid],results_analysis)
 
-function unfold_chains(results::DataFrame)
-    infs = results.infos
-    chains = results.chains
-    unf_chains = []
-    for i in 1:length(infs)
-        nSamples = infs[i].nSamples[1]
-        nTot = length(chains[i][!,1])
-        nChains = nTot/nSamples
-        global fold_chains = []
-        for j in 1:nChains
-            push!(fold_chains,Chains(reshape(Matrix(res.chains[i][Int64.(((j-1)*nSamples+1):(j*nSamples)),:]),nSamples,:,1)))
-        end
-        push!(unf_chains,chainscat(fold_chains...))
+function unfold_chains(chain::DataFrame,nSamples::Int)
+    nTot = length(chain[!,1])
+    nChains = nTot/nSamples
+    fold_chains = []
+    for j in 1:nChains
+        push!(fold_chains,Chains(reshape(Matrix(chain[Int64.(((j-1)*nSamples+1):(j*nSamples)),:]),nSamples,:,1)))
     end
-    return unf_chains
+    chainscat(fold_chains...)
 end

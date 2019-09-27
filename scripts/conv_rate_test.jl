@@ -1,9 +1,10 @@
-using AugmentedGaussianProcesses; const AGP = AugmentedGaussianProcesses
-using Statistics, ForwardDiff
-using MLDataUtils, CSV, LinearAlgebra, LaTeXStrings, SpecialFunctions
 using DrWatson
 quickactivate(joinpath(@__DIR__,".."))
 include(joinpath(srcdir(),"intro.jl"))
+using AugmentedGaussianProcesses; const AGP = AugmentedGaussianProcesses
+using Statistics, ForwardDiff
+using MLDataUtils, CSV, LinearAlgebra, LaTeXStrings, SpecialFunctions
+
 
 ## Parameters and data
 nSamples = 100;
