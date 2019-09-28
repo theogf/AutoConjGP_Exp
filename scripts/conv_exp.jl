@@ -7,11 +7,11 @@ gpflow = pyimport("gpflow")
 tf = pyimport("tensorflow")
 
 
-defaultconvdict = Dict(:time_max=>1e4,:conv_max=>200,:file_name=>"CASP",
-                        :nInducing=>200,:nMinibatch=>10,:likelihood=>:StudentT,
-                        :doCAVI=>!true,:doGD=>true,:doNGD=>!true)
+defaultconvdict = Dict(:time_max=>1e4,:conv_max=>200,:file_name=>"covtype",
+                        :nInducing=>50,:nMinibatch=>10,:likelihood=>:Logistic,
+                        :doCAVI=>true,:doGD=>!true,:doNGD=>!true)
 
-convdictlist = Dict(:time_max=>1e4,:conv_max=>10000,:file_name=>"covtype",
+convdictlist = Dict(:time_max=>1e4,:conv_max=>20000,:file_name=>"covtype",
                         :nInducing=>[100,200,500],:nMinibatch=>[50,100,200],:likelihood=>:Logistic, :doCAVI=>true,:doGD=>true,:doNGD=>true)
 convdictlist = dict_list(convdictlist)
 
@@ -57,11 +57,10 @@ function convergence_exp(dict::Dict=defaultconvdict)
     @info "Created inducing points location matrix"
     params = @ntuple(likelihood,nMinibatch,nInducing,nIter)
     for ((X_train,y_train),(X_test,y_test)) in kfolds((X,y),10,obsdim=1)
-
         if length(y_test) > N_test_max
             subset = sample(1:length(y_test),N_test_max,replace=false)
             X_test = X_test[subset,:]
-            y_test = y_test[subset,:]
+            y_test = y_test[subset]
         end
         ## Run Augmented
         if doCAVI

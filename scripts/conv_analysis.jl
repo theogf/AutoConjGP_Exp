@@ -9,7 +9,7 @@ using Plots; pyplot()
 
 metric_name = Dict("Matern32"=>"RMSE","StudentT"=>"RMSE","Laplace"=>"RMSE","Logistic"=>"Accuracy")
 
-likelihood = :Matern32
+likelihood = :Logistic
 file_name = likelihood == :Logistic ? "covtype" : "CASP"
 # file_name = "covtype"
 nInducing = 200; nMinibatch = 50;

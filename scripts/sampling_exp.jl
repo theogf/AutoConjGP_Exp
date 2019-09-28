@@ -32,7 +32,7 @@ end
 
 defaultdictsamp = Dict(:nChains=>5,:nSamples=>10000,:file_name=>"heart",
                     :likelihood=>:Logistic,
-                    :doHMC=>true,:doMH=>true,:doNUTS=>!true,:doGibbs=>true)
+                    :doHMC=>true,:doMH=>!true,:doNUTS=>!true,:doGibbs=>!true)
 
 
 ν = 3.0
@@ -52,9 +52,9 @@ function sample_exp(dict=defaultdictsamp)
     doMH = dict[:doMH]
     likelihood = dict[:likelihood]
     base_file = datadir("datasets",string(likelihood2ptype[likelihood]),"small",file_name)
-
     ## Load and preprocess the data
     data = isfile(base_file*".h5") ? h5read(base_file*".h5","data") : Matrix(CSV.read(base_file*".csv",header=false))
+    data=data[1:100,:]
     y = data[:,1]; X = data[:,2:end]; (N,nDim) = size(X)
     rescale!(X,obsdim=1)
     l = initial_lengthscale(X)
@@ -101,7 +101,7 @@ function sample_exp(dict=defaultdictsamp)
         @info "Starting chains of HMC"
         times_HMC = []
         HMCchains = []
-        epsilon = 0.1; n_step = 5
+        epsilon = 0.05; n_step = 10
         for i in 1:nChains
             @info "Turing chain $i/$nChains"
             t = @elapsed HMCchain = sample(likelihood2turing[likelihood](X,y_turing,L), HMC(nSamples,epsilon,n_step))
