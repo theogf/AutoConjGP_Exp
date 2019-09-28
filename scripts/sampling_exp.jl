@@ -33,8 +33,10 @@ end
 defaultdictsamp = Dict(:nChains=>5,:nSamples=>10000,:file_name=>"heart",
                     :likelihood=>:Logistic,
                     :doHMC=>true,:doMH=>!true,:doNUTS=>!true,:doGibbs=>!true)
-
-
+dictlistsamp = Dict(:nChains=>5,:nSamples=>10000,:file_name=>"heart",
+                    :likelihood=>:Logistic,:epsilon=>[0.01,0.05,0.1,0.5],:n_steps=>[1,2,5,10],
+                    :doHMC=>true,:doMH=>!true,:doNUTS=>!true,:doGibbs=>!true)
+dictlistsamp = dict_list(dictlistsamp)
 ν = 3.0
 β_l = 1.0
 likelihood2gibbs = Dict(:Logistic=>LogisticLikelihood(),:Laplace=>LaplaceLikelihood(β_l),:StudentT=>StudentTLikelihood(ν))
@@ -101,7 +103,7 @@ function sample_exp(dict=defaultdictsamp)
         @info "Starting chains of HMC"
         times_HMC = []
         HMCchains = []
-        epsilon = 0.05; n_step = 10
+        epsilon = dict[:epsilon]; n_step = dict[:n_steps]
         for i in 1:nChains
             @info "Turing chain $i/$nChains"
             t = @elapsed HMCchain = sample(likelihood2turing[likelihood](X,y_turing,L), HMC(nSamples,epsilon,n_step))
@@ -155,4 +157,5 @@ function sample_exp(dict=defaultdictsamp)
     return all_chains,times
 end
 
-chains, times = sample_exp()
+# chains, times = sample_exp()
+map(sample_exp,dictlistsamp)
