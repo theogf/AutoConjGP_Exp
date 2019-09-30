@@ -56,7 +56,6 @@ function sample_exp(dict=defaultdictsamp)
     base_file = datadir("datasets",string(likelihood2ptype[likelihood]),"small",file_name)
     ## Load and preprocess the data
     data = isfile(base_file*".h5") ? h5read(base_file*".h5","data") : Matrix(CSV.read(base_file*".csv",header=false))
-    data=data[1:100,:]
     y = data[:,1]; X = data[:,2:end]; (N,nDim) = size(X)
     rescale!(X,obsdim=1)
     l = initial_lengthscale(X)
