@@ -12,8 +12,10 @@ res = collect_results(datadir("part_1",likelihood_name),white_list=[:infos])
 infos = vcat(res.infos...)
 valid = findall(x->x==nSamples,infos.nSamples)
 dfresults = []
-# params = @ntuple nSamples
-# chain = DrWatson.wload(datadir("part_1",likelihood_name,savename("GS",params,"bson")))[:chains]
+# param_name = @ntuple nSamples
+# chain = DrWatson.wload(datadir("part_1",likelihood_name,savename("MH",param_name,"bson")))[:chains]
+# chain = unfold_chains(chain,nSamples)
+# res = treat_chain(chain)
 @progress for v in valid
     @info "Processing alg $(infos.alg[v]), epsilon $(infos.epsilon[v]), n_step $(infos.n_step[v])"
     if infos.alg[v] == "HMC"
@@ -35,7 +37,15 @@ dfresults = []
     # chain = unfold_chains.(view(res.chains,valid),nSamples)
 end
 
-hcat(infos[:alg,:epsilon,:n_step,:time],vcat(dfresults...))
+# push!(dfresults,res)
+savedf = deepcopy(dfresults)
+results_infos = DataFrame(hcat(infos.alg[valid][1:length(savedf)],infos.epsilon[valid][1:length(savedf)],infos.n_step[valid][1:length(savedf)],infos.time[valid][1:length(savedf)]),[:alg,:epsilon,:n_step,:time])
+# push!(results_infos,["MH",0,0,infos.time[end]])
+results =  hcat(results_infos,vcat(dfresults...))
+sort!(results,[:epsilon,:n_step])
+using CSVFiles
+safesave(plotsdir("part_1",likelihood_name,"results.csv"),results)
+
 
 function treat_chain(chain)
     burnin = mean(mean.(getindex.(heideldiag(chain),Symbol("Burn-in"))));
@@ -66,5 +76,23 @@ function unfold_chains(chain::DataFrame,nSamples::Int)
     Chains(samples)
 end
 
-@time unfolded_chain =  unfold_chains(chain,nSamples);
-@time Chains(rand(10000,500,5));
+
+likelihood_name=  "StudentT"
+
+data = CSV.read(plotsdir("part_1",likelihood_name,"results.csv"))
+epsilon = 0.05
+n_steps = 10
+lagindices = 5:(5+9)
+
+lagGS = @linq data |> where(:alg.=="GS")
+lagGS = Vector(lagGS[1,lagindices])
+lagHMC = @linq data |> where(:alg .== "HMC") |> where(:epsilon.==epsilon) |> where(:n_step.==n_steps)
+lagHMC = Vector(lagHMC[1,lagindices])
+lagMH = @linq data |> where(:alg.=="MH")
+lagMH = Vector(lagMH[1,lagindices])
+
+plot(xticks=collect(1:10),xlabel="Lag",ylabel="Correlation")
+plot!(1:10,lagGS,lab="Gibbs Sampling")
+plot!(1:10,lagHMC,lab="HMC")
+plot!(1:10,lagMH,lab="MH")
+savefig(plotsdir("part_1",likelihood_name,"lag_plot.png"))

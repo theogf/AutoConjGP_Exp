@@ -13,10 +13,11 @@ data = Matrix(CSV.read(joinpath(datadir(),"datasets/regression/small/housing.csv
 # data = Matrix(CSV.read(joinpath(datadir(),"datasets/classification/small/heart.csv"),header=false))
 pointsused = :;
 y = data[pointsused,1]; rescale!(y,obsdim=1)
+# y.*= 1000
 X = data[pointsused,2:end]; (N,nDim) = size(X); rescale!(X,obsdim=1)
 l = initial_lengthscale(X)
-
-##
+l*=100
+#
 kernel = RBFKernel(l)
 K = AugmentedGaussianProcesses.kernelmatrix(X,kernel)+1e-4*I
 burnin=1
@@ -43,14 +44,14 @@ function cb(model,iter)
 end
 
 ##
-
-amodel = VGP(X,y,RBFKernel(0.1),genlikelihood,AnalyticVI(),verbose=3,optimizer=false)
+amodel = VGP(X,y,RBFKernel(l),genlikelihood,AnalyticVI(),verbose=3,optimizer=false)
 train!(amodel,iterations=nIter,callback=cb)
 
 
 ##
 varω = zeros(N)
-
+Σ = amodel.Σ[1]
+μ = amodel.μ[1]
 function varomega(c)
     ForwardDiff.gradient(x->∇φ(genlikelihood,x[1]),[c])[1]/φ(genlikelihood,c) - (∇φ(genlikelihood,c)/φ(genlikelihood,c))^2
 end
@@ -64,6 +65,7 @@ diffeta2 = eta2.-diag(amodel.η₂[1]);
 diffeta = vcat(diffeta1,diffeta1)
 J¹ = -Diagonal(varω.*(2*amodel.μ[1].*γ(genlikelihood,y).-β(genlikelihood,y)))*amodel.Σ[1];
 J² = (-2Diagonal(varω)*amodel.Σ[1]).*(Diagonal(γ(genlikelihood,y))*amodel.Σ[1]+(2*Diagonal(γ(genlikelihood,y))*amodel.μ[1].-β(genlikelihood,y))*transpose(amodel.μ[1]))
+
 
 ##
 eps_0_eta1 = diffeta1[:,1]
@@ -90,10 +92,26 @@ eps_tmax = zeros(nIter)
 end
 totalmatrix = vcat(hcat(Diagonal(β(genlikelihood,y))*J¹,Diagonal(β(genlikelihood,y))*J²),
                     hcat(-Diagonal(γ(genlikelihood,y))*J¹,-Diagonal(γ(genlikelihood,y))*J²))
-lambda_eta1_max = maximum(abs.(real.(eigen(J¹).values)))
-lambda_eta1_min = minimum(abs.(real.(eigen(J¹).values)))
+A = vcat(hcat(Diagonal(β(genlikelihood,y)),Diagonal(β(genlikelihood,y))),hcat(-Diagonal(γ(genlikelihood,y)),-Diagonal(γ(genlikelihood,y))))
+B = vcat(hcat(J¹,zero(J¹)),hcat(zero(J²),J²))
+
+
+
+heatmap(abs.(A),yflip=true)
+heatmap(abs.(totalmatrix),yflip=true,title="J") |> display
+heatmap(abs.(Σ),yflip=true,title="Σ") |> display
+heatmap(abs.(amodel.Knn[1]),yflip=true,title="K") |> display
+heatmap(abs.(J¹),yflip=true,title="J¹") |> display
+maximum(real.(eigvals(Diagonal(β(genlikelihood,y)-γ(genlikelihood,y))*J¹)))
+maxA = maximum(abs.(eigvals(Matrix(A))))
+maxB = maximum(abs.(real.(eigvals(B))))
+maxA*maxB
 maximum(abs.(real.(eigen(totalmatrix).values)))
-###
+tr(totalmatrix)
+##
+A*B==totalmatrix
+
+### Avoid plotting on cluster
 if Sys.CPU_NAME == "skylake"
     using Plots; pyplot()
     ##
