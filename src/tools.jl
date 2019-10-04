@@ -55,7 +55,7 @@ function run_nat_grads_with_adam(model,iterations,X_test,y_test,LogArrays; ind_p
         if op_adam!=0
             sess.run(op_adam)
         end
-        if i % 10 == 0
+        if i % 100 == 0
             println("$i gamma=$(sess.run(gamma)) ELBO=$(sess.run(model.likelihood_tensor))")
             if time()-time_init > time_max
                 @info "Stopped training cause time limit $time_max s is reached "

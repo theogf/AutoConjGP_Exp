@@ -11,7 +11,7 @@ defaultconvdict = Dict(:time_max=>1e4,:conv_max=>200,:file_name=>"covtype",
                         :nInducing=>50,:nMinibatch=>10,:likelihood=>:Logistic,
                         :doCAVI=>true,:doGD=>!true,:doNGD=>!true)
 
-convdictlist = Dict(:time_max=>1e4,:conv_max=>50000,:file_name=>"covtype",
+convdictlist = Dict(:time_max=>1e4,:conv_max=>50000,:file_name=>"SUSY",
                         :nInducing=>[100,200,500],:nMinibatch=>[50,100,200],:likelihood=>:Logistic, :doCAVI=>true,:doGD=>true,:doNGD=>true)
 convdictlist = dict_list(convdictlist)
 
@@ -30,7 +30,7 @@ function convergence_exp(dict::Dict=defaultconvdict)
     base_file = datadir("datasets",string(problem),"large",file_name)
 
     ## Load and preprocess the data
-    data = isfile(base_file*".h5") ? h5read(base_file*".h5","data") : Matrix(CSV.read(base_file*".csv",header=false))
+    global data = isfile(base_file*".h5") ? h5read(base_file*".h5","data") : Matrix(CSV.read(base_file*".csv",header=false))
     X = data[:,2:end]; y = data[:,1]; rescale!(X,obsdim=1);
     (N,nDim) = size(X)
     if problem == :classification
@@ -66,10 +66,10 @@ function convergence_exp(dict::Dict=defaultconvdict)
         if doCAVI
             @info "Training CAVI"
             LogArrays = []
-            model = SVGP(X,y,CAVI_kernel,likelihood_CAVI[likelihood],AnalyticSVI(nMinibatch),nInducing)
+            model = SVGP(X_train,y_train,CAVI_kernel,likelihood_CAVI[likelihood],AnalyticSVI(nMinibatch),nInducing)
             train!(model,iterations=5)
             @info "Finished pre-training"
-                model = SVGP(X,y,CAVI_kernel,likelihood_CAVI[likelihood],AnalyticSVI(nMinibatch),nInducing)
+                model = SVGP(X_train,y_train,CAVI_kernel,likelihood_CAVI[likelihood],AnalyticSVI(nMinibatch),nInducing)
             model.Z[1] = Z
             t_first = time_ns()
             try
@@ -82,15 +82,14 @@ function convergence_exp(dict::Dict=defaultconvdict)
             training_df = DataFrame(hcat(LogArrays...)',[:i,:t_init,:metric,:nll,:ELBO,:t_end])
             results = DataFrame([[:CAVI],[likelihood],[nInducing],[nMinibatch],[t_first],[training_df]],[:model,:likelihood,:nInducing,:nMinibatch,:t_first,:training_df])
 
-            @tagsave(datadir("part_3",file_name,savename("CAVI",params,"bson")),@dict results
-                    )
+            @tagsave(datadir("part_3",file_name,savename("CAVI",params,"bson")),@dict results)
         end
         ## Run NGD
         if doNGD
             @info "Training NGD"
             LogArrays = []
             GD_kernel = gpflow.kernels.RBF(nDim,lengthscales=l,ARD=true)
-            global model = gpflow.models.SVGP(X, Float64.(reshape(y,(length(y),1))),kern=deepcopy(GD_kernel),likelihood=likelihood_GD[likelihood],num_latent=1,Z=Z,minibatch_size=nMinibatch)
+            global model = gpflow.models.SVGP(X_train, Float64.(reshape(y_train,(length(y_train),1))),kern=deepcopy(GD_kernel),likelihood=likelihood_GD[likelihood],num_latent=1,Z=Z,minibatch_size=nMinibatch)
             t_first = time_ns()
             try
                 run_nat_grads_with_adam(model,nIter,X_test,y_test,LogArrays,callback=cbgd,time_max=tMax,kernel_fixed=false)
@@ -109,7 +108,7 @@ function convergence_exp(dict::Dict=defaultconvdict)
             @info "Training GD"
             LogArrays = []
             GD_kernel = gpflow.kernels.RBF(nDim,lengthscales=l,ARD=true)
-            model = gpflow.models.SVGP(X, Float64.(reshape(y,(length(y),1))),kern=deepcopy(GD_kernel),likelihood=likelihood_GD[likelihood],num_latent=1,Z=Z,minibatch_size=nMinibatch)
+            model = gpflow.models.SVGP(X_train, Float64.(reshape(y_train,(length(y_train),1))),kern=deepcopy(GD_kernel),likelihood=likelihood_GD[likelihood],num_latent=1,Z=Z,minibatch_size=nMinibatch)
             t_first = time_ns()
             try
                 run_grads_with_adam(model,nIter,X_test,y_test,LogArrays,callback=cbgd,time_max=tMax,kernel_fixed=false)

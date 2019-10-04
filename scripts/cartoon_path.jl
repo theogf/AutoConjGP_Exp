@@ -5,7 +5,9 @@ using AugmentedGaussianProcesses; const AGP = AugmentedGaussianProcesses
 using Statistics, ForwardDiff
 using MLDataUtils, CSV, LinearAlgebra, LaTeXStrings, SpecialFunctions
 using Plots
-
+gpflow = pyimport("gpflow")
+likelihood_GD = Dict(:Logistic=>py"BernoulliLogit()",:Matern32=>py"Matern32()",
+    :Laplace=>py"Laplace()",:StudentT=>py"gpflow.likelihoods.StudentT(3.0)")
 ## Parameters and data
 problem = :classification
 # problem = :regression
@@ -55,6 +57,15 @@ function cb(model,iter)
     # pred_f[:,iter+1],sig_f[:,iter+1] = predict_f(model,X,covf=true)
 end
 
+function cbflow(model,session,iter,X_test,y_test,valsGD)
+    a = Vector{Float64}(undef,3)
+    model.anchor(session)
+    a[1]=model.q_mu.value[1]
+    a[2]=model.q_sqrt.value[1]^2
+    a[3] = session.run(model.likelihood_tensor)
+    push!(valsGD,a)
+end
+
 ##
 amodel = SVGP(X,y,kernel,genlikelihood,AnalyticVI(),1,verbose=3,optimizer=false)
 amodel.Z[1] .= mean(X,dims=1)
@@ -62,7 +73,13 @@ amodel.μ[1] .= [inits[1]]
 amodel.Σ[1] .= [inits[2]]
 train!(amodel,iterations=nIter,callback=cb)
 ##
+valsGD = []
+GD_kernel = gpflow.kernels.RBF(nDim,lengthscales=l,ARD=true)
+gdmodel = gpflow.models.SVGP(X, Float64.(reshape(y,(length(y),1))),kern=deepcopy(GD_kernel),likelihood=likelihood_GD[Symbol(lname)],num_latent=1,Z=mean(X,dims=1))
+run_grads_with_adam(gdmodel,nIter*10,[],[],valsGD,ind_points_fixed=true,kernel_fixed=true,callback=cbflow,Stochastic=false)
+gdmodel.q_mu.value
 
+##
 μopt = copy(amodel.μ[1])
 Σopt = copy(amodel.Σ[1])
 function restore_model(model,μopt,Σopt)
