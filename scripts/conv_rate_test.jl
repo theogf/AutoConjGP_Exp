@@ -4,15 +4,15 @@ include(joinpath(srcdir(),"intro.jl"))
 using AugmentedGaussianProcesses; const AGP = AugmentedGaussianProcesses
 using Statistics, ForwardDiff
 using MLDataUtils, CSV, LinearAlgebra, LaTeXStrings, SpecialFunctions
-
+using Plots
 
 ## Parameters and data
 nSamples = 100;
 nChains = 5;
-data = Matrix(CSV.read(joinpath(datadir(),"datasets/regression/small/housing.csv"),header=false))
+data = Matrix(CSV.read(joinpath(datadir(),"datasets/classification/small/heart.csv"),header=false))
 # data = Matrix(CSV.read(joinpath(datadir(),"datasets/classification/small/heart.csv"),header=false))
 pointsused = :;
-y = data[pointsused,1]; rescale!(y,obsdim=1)
+y = data[pointsused,1]; #rescale!(y,obsdim=1)
 # y.*= 1000
 X = data[pointsused,2:end]; (N,nDim) = size(X); rescale!(X,obsdim=1)
 l = initial_lengthscale(X)
@@ -23,7 +23,7 @@ K = AugmentedGaussianProcesses.kernelmatrix(X,kernel)+1e-4*I
 burnin=1
 ν = 10.0; likelihood = StudentTLikelihood(ν); noisegen = TDist(ν); lname="StudentT"
 # likelihood = LaplaceLikelihood(); noisegen = Laplace(); lname = "Laplace";
-# likelihood = LogisticLikelihood(); noisegen = Normal(); lname = "Logistic"
+likelihood = LogisticLikelihood(); noisegen = Normal(); lname = "Logistic"
 
 ##
 if lname == "Logistic"
@@ -99,15 +99,24 @@ B = vcat(hcat(J¹,zero(J¹)),hcat(zero(J²),J²))
 
 heatmap(abs.(A),yflip=true)
 heatmap(abs.(totalmatrix),yflip=true,title="J") |> display
-heatmap(abs.(Σ),yflip=true,title="Σ") |> display
+heatmap(abs.(Σ),yflip=true,title="Sigma") |> display
 heatmap(abs.(amodel.Knn[1]),yflip=true,title="K") |> display
 heatmap(abs.(J¹),yflip=true,title="J¹") |> display
+heatmap(abs.(J²),yflip=true,title="J²") |> display
 maximum(real.(eigvals(Diagonal(β(genlikelihood,y)-γ(genlikelihood,y))*J¹)))
 maxA = maximum(abs.(eigvals(Matrix(A))))
 maxB = maximum(abs.(real.(eigvals(B))))
 maxA*maxB
 maximum(abs.(real.(eigen(totalmatrix).values)))
 tr(totalmatrix)
+eigmax(-J²)
+eigmax(Σ+μ*transpose(μ))
+eigmax(Σ)
+
+inv(2minimum(amodel.likelihood.θ[1])+inv(eigmax(amodel.Knn[1])))
+sum(amodel.likelihood.θ[1])
+maximum(varω)
+eigmax(Diagonal(varω)*Σ)
 ##
 A*B==totalmatrix
 

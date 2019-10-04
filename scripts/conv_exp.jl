@@ -11,7 +11,7 @@ defaultconvdict = Dict(:time_max=>1e4,:conv_max=>200,:file_name=>"covtype",
                         :nInducing=>50,:nMinibatch=>10,:likelihood=>:Logistic,
                         :doCAVI=>true,:doGD=>!true,:doNGD=>!true)
 
-convdictlist = Dict(:time_max=>1e4,:conv_max=>20000,:file_name=>"covtype",
+convdictlist = Dict(:time_max=>1e4,:conv_max=>50000,:file_name=>"covtype",
                         :nInducing=>[100,200,500],:nMinibatch=>[50,100,200],:likelihood=>:Logistic, :doCAVI=>true,:doGD=>true,:doNGD=>true)
 convdictlist = dict_list(convdictlist)
 
