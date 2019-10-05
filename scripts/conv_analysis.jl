@@ -10,8 +10,8 @@ using Plots; pyplot()
 metric_name = Dict("Matern32"=>"RMSE","StudentT"=>"RMSE","Laplace"=>"RMSE","Logistic"=>"Accuracy")
 
 # for likelihood in [:Laplace,:Logistic,:Matern32,:StudentT]
-    likelihood = :Laplace
-    file_name = likelihood == :Logistic ? "covtype" : "CASP"
+    likelihood = :Logistic
+    file_name = likelihood == :Logistic ? "SUSY" : "CASP"
     x_axis = :time; nIter= 40000
     # file_name = "covtype"
     res = collect_results(datadir("part_3",file_name))
@@ -22,6 +22,9 @@ metric_name = Dict("Matern32"=>"RMSE","StudentT"=>"RMSE","Laplace"=>"RMSE","Logi
         # nInducing = 100; nMinibatch = 100;# nIter = 40000
         @info "$((nInducing,nMinibatch))"
         refined_results = @linq results |> where(:nMinibatch .== nMinibatch) |> where(:nInducing .== nInducing)
+        if size(refined_results,1) == 0
+            continue;
+        end
         ##
         pelbo = plot(ylabel="Neg. ELBO")
         pmetric =  plot(ylabel=metric_name[string(likelihood)])

@@ -4,6 +4,7 @@ include(joinpath(srcdir(),"intro.jl"))
 using Turing, MCMCChains
 using AugmentedGaussianProcesses
 using MLDataUtils, CSV, StatsFuns, HDF5
+using GaussianProcesses
 Turing.setadbackend(:reverse_diff)
 
 @model laplacemodel(x,y,L) = begin
@@ -32,15 +33,16 @@ end
 
 defaultdictsamp = Dict(:nChains=>5,:nSamples=>10000,:file_name=>"heart",
                     :likelihood=>:Logistic,
-                    :doHMC=>true,:doMH=>!true,:doNUTS=>!true,:doGibbs=>!true)
+                    :doHMC=>!true,:doMH=>!true,:doNUTS=>!true,:doGibbs=>!true,:doGP=>true)
 dictlistsamp = Dict(:nChains=>5,:nSamples=>10000,:file_name=>"heart",
                     :likelihood=>:Logistic,:epsilon=>[0.01,0.05,0.1,0.5],:n_steps=>[1,2,5,10],
-                    :doHMC=>true,:doMH=>!true,:doNUTS=>!true,:doGibbs=>!true)
+                    :doHMC=>true,:doMH=>!true,:doNUTS=>!true,:doGibbs=>!true,:doGP=>true)
 dictlistsamp = dict_list(dictlistsamp)
 ν = 3.0
 β_l = 1.0
 likelihood2gibbs = Dict(:Logistic=>LogisticLikelihood(),:Laplace=>LaplaceLikelihood(β_l),:StudentT=>StudentTLikelihood(ν))
 likelihood2turing = Dict(:Logistic=>logisticmodel,:Laplace=>laplacemodel,:StudentT=>studenttmodel)
+likelihood2gp = Dict(:Logistic=>BernLik(),:StudentT=>StuTLik(Int(ν),1.0))
 likelihood2ptype = Dict(:Logistic=>:classification,:Laplace=>:regression,:StudentT=>:regression)
 
 ## Parameters and data
@@ -52,6 +54,7 @@ function sample_exp(dict=defaultdictsamp)
     doHMC = dict[:doHMC]
     doNUTS = dict[:doNUTS]
     doMH = dict[:doMH]
+    doGP = dict[:doGP]
     likelihood = dict[:likelihood]
     base_file = datadir("datasets",string(likelihood2ptype[likelihood]),"small",file_name)
     ## Load and preprocess the data
@@ -64,7 +67,8 @@ function sample_exp(dict=defaultdictsamp)
         ys = unique(y)
         @assert length(ys) == 2
         y[y.==ys[1]].= 1; y[y.==ys[2]].= -1
-        y_turing = (y.+1.0)./2
+        y_turing = Int64.((y.+1.0)./2)
+        y_gp = Vector(Bool.(y_turing))
     elseif likelihood2ptype[likelihood] == :regression
         rescale!(y,obsdim=1);
         y_turing = copy(y)
@@ -153,8 +157,25 @@ function sample_exp(dict=defaultdictsamp)
         push!(all_chains,chains)
         push!(times,times_MH)
     end
+    if doGP
+        @info "Trying with GaussianProcesses.jl"
+        times_GP = []
+        GPchains = []
+        gpmodel = GPMC(copy(X'),y_gp,MeanZero(),SE(log(l),0.0),likelihood2gp[likelihood])
+        for i in 1:nChains
+            @info "GP chain $i/$nChains"
+            t = @elapsed GPchain = copy(mcmc(gpmodel,nIter=nSamples,burn=1,thin=1)')
+            push!(GPchains,GPchain)
+            push!(times_GP,t)
+        end
+        chains = DataFrame(chainscat(GPchains...))
+        infos = DataFrame(reshape(["GP",nSamples,mean(times_GP),0,0,0,0],1,:),[:alg,:nSamples,:time,:epsilon,:n_step,:n_adapt,:accept])
+        @tagsave(datadir("part_1",string(likelihood),savename("GP",params_samp,"bson")), @dict chains infos)
+        push!(all_chains,chains)
+        push!(times,times_GP)
+    end
     return all_chains,times
 end
 
-# chains, times = sample_exp()
-map(sample_exp,dictlistsamp)
+chains, times = sample_exp()
+# map(sample_exp,dictlistsamp)

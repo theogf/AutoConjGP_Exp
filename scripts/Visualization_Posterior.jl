@@ -1,10 +1,12 @@
-using AugmentedGaussianProcesses; const AGP = AugmentedGaussianProcesses
 using DrWatson
+quickactivate("/home/theo/experiments/AutoConj")
+include(joinpath(srcdir(),"intro.jl"))
+using AugmentedGaussianProcesses; const AGP = AugmentedGaussianProcesses
 using Plots; pyplot()
 using TensorBoardLogger, Logging
 using Zygote
-quickactivate("/home/theo/experiments/AutoConj")
-include(joinpath(srcdir(),"intro.jl"))
+using StatsFuns
+
 
 using KernelDensity
 
@@ -13,8 +15,8 @@ using KernelDensity
 
 
 nDim = 1
-nPoints = 100
-nGrid = 100
+nPoints = 50
+nGrid = 200
 nIter = 100
 kernel = RBFKernel(0.1)
 ν = 10.0; likelihood = StudentTLikelihood(ν); noisegen = TDist(ν)
@@ -25,7 +27,7 @@ likelihood = LogisticLikelihood(); noisegen = Normal(); lname = "Logistic"
 X = rand(nPoints,nDim)
 s = sortperm(X[:])
 # x1_test = collect(range(-0.05,1.05,length=nGrid))
-x1_test = collect(range(0,1,length=nGrid))
+x1_test = collect(range(-0.2,1.2,length=nGrid))
 x2_test = collect(range(0,1,length=nGrid))
 
 if nDim == 1
@@ -53,9 +55,13 @@ train!(amodel)
 
 ##
 gmodel = VGP(X[s,:],y[s],kernel,likelihood,GibbsSampling(nBurnin=100,samplefrequency=3),optimizer=false,verbose=3)
-train!(gmodel,iterations=10003)
+train!(gmodel,iterations=301)
 samples = gmodel.inference.sample_store[1]
 Asamples = hcat(samples...)
+
+scatter(X[s,:],(y[s].+1.0)/2.0,lab="",markerstrokewidth=0.0,framestyle=:none)
+plot!(X[s,:],[logistic.(s) for s in samples],lab="",alpha=2/length(samples),color=:black,lw=3.0)
+
 minA,maxA = extrema(AGP.logistic.(Asamples))
 nRange = 100
 kderange = collect(range(minA,maxA,length=nRange))
@@ -73,9 +79,8 @@ contourf(X[s,:][:],kderange,pdfKDEs',colorbar=false,color=:blues) |> display
     # plot!(X[s,:],samples[i],lab="",alpha=0.3)
 # p
 ##
-emodel = VGP(X[s,:],y[s],kernel,likelihood,QuadratureVI(nGaussHermite=100),optimizer=false,verbose=3)
-train!(emodel,iterations=10000)
-
+# emodel = VGP(X[s,:],y[s],kernel,likelihood,QuadratureVI(nGaussHermite=100),optimizer=false,verbose=3)
+# train!(emodel,iterations=10000)
 
 ## Plotting of the predictions
 nSig=  1; lw = 3.0; alph=0.5
@@ -114,8 +119,47 @@ elseif isa(likelihood,ClassificationLikelihood)
     # plot!(X_test,y_pred_e,color=3,lab="Numerical",lw=lw) |> display
 end
 
+#
+# KL_logdet(amodel.Σ[1],emodel.Σ[1])
+# KL_trace(amodel.Σ[1],emodel.Σ[1])
+# KL_dot(amodel.μ[1],emodel.μ[1],emodel.Σ[1])
+# GaussianKL(amodel.μ[1],emodel.μ[1],amodel.Σ[1],emodel.Σ[1])
+##
+datapointsize = 5.0
 
-KL_logdet(amodel.Σ[1],emodel.Σ[1])
-KL_trace(amodel.Σ[1],emodel.Σ[1])
-KL_dot(amodel.μ[1],emodel.μ[1],emodel.Σ[1])
-GaussianKL(amodel.μ[1],emodel.μ[1],amodel.Σ[1],emodel.Σ[1])
+
+y_pred_a, var_pred_a = proba_y(amodel,X_test)
+f_pred_a, varf_pred_a = predict_f(amodel,X_test,covf=true)
+logitnormalpdf(x,m,s) = 1/(s*sqrt2π*x*(1-x))*exp(-(logit(x)-m)^2/(2*s^2))
+nGridx = 200
+gridx = range(0,1,length=nGridx)
+pdflogit = zeros(nGrid,nGridx)
+for i in 1:nGridx, j in 1:nGrid
+    pdflogit[j,i] = logitnormalpdf(gridx[i],f_pred_a[j],sqrt(varf_pred_a[j]))
+end
+contourf(X_test,collect(gridx),pdflogit',color=:amp,colorbar=:false,levels=100,framestyle=:none,background_color=RGBA(0.0,0.0,0.0,0.0))
+scatter!(X,(y./2.0).+0.5,lab="",xlims=extrema(X_test),markerstrokewidth=0.0,framestyle=:none,markersize=datapointsize,color=1)|>display
+savefig(plotsdir("figures","vi_inference.png"))
+# plot!(X_test,min.(y_pred_a.+nSig*sqrt.(var_pred_a),1.0),fillrange=max.(y_pred_a.-nSig*sqrt.(var_pred_a),0.0),alpha=0.5,lw=0.0,lab="",color=2)
+# plot!(X_test,min.(y_pred_a.+2*sqrt.(var_pred_a),1.0),fillrange=max.(y_pred_a.-2*sqrt.(var_pred_a),0.0),alpha=0.3,lw=0.0,lab="",color=2)
+# plot!(X_test,min.(y_pred_a.+3*sqrt.(var_pred_a),1.0),fillrange=max.(y_pred_a.-3*sqrt.(var_pred_a),0.0),alpha=0.3,lw=0.0,lab="",color=2)
+# plot!(X_test,y_pred_a,color=2,lab="",lw=lw) |>display
+##
+
+scatter(X[s,:],(y[s].+1.0)/2.0,lab="",markerstrokewidth=0.0,framestyle=:none,markersize=datapointsize)
+N_test = size(X_test,1)
+K = kernelmatrix(X[s,:],gmodel.kernel[1])
+k_star = kernelmatrix(reshape(X_test,:,1),X[s,:],gmodel.kernel[1])
+pred_mean = [k_star*gmodel.invKnn[1]].*gmodel.inference.sample_store[1]
+k_starstar = kernelmatrix(reshape(X_test,:,1),gmodel.kernel[1]) + 1e-6I
+K̃ = Symmetric(k_starstar - k_star*inv(K+1e-6I)*transpose(k_star))
+eigvals(K̃)
+isposdef(K̃)
+pred_y_g = []
+for m in pred_mean
+    for i in 1:10
+        push!(pred_y_g,logistic.(rand(MvNormal(m,K̃))))
+    end
+end
+plot!(X_test,pred_y_g,lab="",alpha=2/length(samples),color=:red,lw=3.0) |> display
+savefig(plotsdir("figures","gibbs_inference.png"))
