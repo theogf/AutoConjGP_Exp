@@ -5,7 +5,7 @@ using CSV, AugmentedGaussianProcesses
 using PyCall
 gpflow = pyimport("gpflow")
 tf = pyimport("tensorflow")
-f= ARGS[1]
+@show= ARGS[1]
 try
     dict = load(f)
     problem_type = Dict("covtype"=>:classification,"heart"=>:classification,"HIGGS"=>:classification,"SUSY"=>:classification,"CASP"=>:regression,"airline"=>:regression)

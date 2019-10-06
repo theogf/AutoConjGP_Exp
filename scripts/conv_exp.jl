@@ -1,10 +1,7 @@
 using DrWatson
 quickactivate(joinpath(@__DIR__,".."))
 include(srcdir("intro.jl"))
-using CSV, AugmentedGaussianProcesses
-using PyCall
-gpflow = pyimport("gpflow")
-tf = pyimport("tensorflow")
+
 defaultconvdict = Dict(:time_max=>1e4,:conv_max=>200,:file_name=>"covtype",
                         :nInducing=>50,:nMinibatch=>10,:likelihood=>:Logistic,
                         :doCAVI=>true,:doGD=>!true,:doNGD=>!true)
@@ -17,7 +14,7 @@ tmpfolder = projectdir("tmp","conv_exp",string(convdictlist[1][:file_name]),stri
 ##
 files = tmpsave(convdictlist,tmpfolder)
 try
-    script = scriptdir("_conv_exp.jl")
+    script = scriptsdir("_conv_exp.jl")
     for (i,r) in enumerate(files)
         @show fullpath = joinpath(tmpfolder,r)
         screenname = "Conv_"*string(convdictlist[i][:file_name])*"_"*string(convdictlist[i][:likelihood])*"_"*string(convdictlist[i][:nInducing])*"_"*string(convdictlist[i][:nMinibatch])
