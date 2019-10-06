@@ -20,13 +20,13 @@ try
     script = scriptdir("_conv_exp.jl")
     for r in files
         @show fullpath = "$(tmpfolder*r)"
-        submit = `julia $script $(fullpath)`
+        submit = `screen -d -m julia -e $script $(fullpath)`# $(fullpath)`
         run(submit)
     end
 catch e
     rm(tmpfolder,recursive=true)
     rethrow(e)
 end
-rm(tmpfolder,recursive=true)
+# rm(tmpfolder,recursive=true)
 
 # convergence_exp()
