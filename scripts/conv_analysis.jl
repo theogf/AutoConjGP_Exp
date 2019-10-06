@@ -1,13 +1,18 @@
 using DrWatson
 quickactivate(joinpath("..",@__DIR__))
 include(joinpath(srcdir(),"intro.jl"))
+include(joinpath(srcdir(),"plots_tools.jl"))
 using AugmentedGaussianProcesses
 using MLDataUtils, DelimitedFiles
 using DataFramesMeta
 using LaTeXStrings
 using Plots; pyplot()
 
+
+
 metric_name = Dict("Matern32"=>"RMSE","StudentT"=>"RMSE","Laplace"=>"RMSE","Logistic"=>"Accuracy")
+method_name = Dict(:CAVI=>"AACI (ours)",:NGD=>"NGD VI",:GD=>"ADAM SVI")
+
 
 # for likelihood in [:Laplace,:Logistic,:Matern32,:StudentT]
     likelihood = :Logistic
@@ -34,16 +39,16 @@ metric_name = Dict("Matern32"=>"RMSE","StudentT"=>"RMSE","Laplace"=>"RMSE","Logi
             res = @linq refined_results |> where(:model.==type)
             if x_axis == :iter
                 iters = res.training_df[1].i
-                plot!(pelbo,iters,-res.training_df[1].ELBO,xaxis=:log,lab=type,xlabel="Iterations")
-                plot!(pmetric,iters,res.training_df[1].metric,xaxis=:log,lab=type,xlabel="Iterations")
-                plot!(pnll,iters, -res.training_df[1].nll,xaxis=:log,lab=type,xlabel="Iterations")
+                plot!(pelbo,iters,-res.training_df[1].ELBO,xaxis=:log,lab=method_name[type],xlabel="Iterations",color=colors[i])
+                plot!(pmetric,iters,res.training_df[1].metric,xaxis=:log,lab=method_name[type],xlabel="Iterations",color=colors[i])
+                plot!(pnll,iters, -res.training_df[1].nll,xaxis=:log,lab=method_name[type],xlabel="Iterations",color=colors[i])
             elseif x_axis == :time
                 t_init = (res.training_df[1].t_init.-res.t_first[1])./1e9
                 t_end = (res.training_df[1].t_end.-res.t_first[1])./1e9
                 t_eval = t_end .- cumsum(t_end-t_init)
-                plot!(pelbo,t_eval,-res.training_df[1].ELBO,xaxis=:log,lab=type,xlabel=tlabel)
-                plot!(pmetric,t_eval,res.training_df[1].metric,xaxis=:log,lab=type,xlabel=tlabel)
-                plot!(pnll,t_eval,-res.training_df[1].nll,xaxis=:log,lab=type,xlabel=tlabel)
+                plot!(pelbo,t_eval,-res.training_df[1].ELBO,xaxis=:log,lab=method_name[type],xlabel=tlabel,color=colors[i])
+                plot!(pmetric,t_eval,res.training_df[1].metric,xaxis=:log,lab=method_name[type],xlabel=tlabel,color=colors[i])
+                plot!(pnll,t_eval,-res.training_df[1].nll,xaxis=:log,lab=method_name[type],xlabel=tlabel,color=colors[i])
             end
         end
         plot(pelbo,pmetric,pnll)|>display

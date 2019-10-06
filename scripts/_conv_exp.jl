@@ -5,7 +5,7 @@ using CSV, AugmentedGaussianProcesses
 using PyCall
 gpflow = pyimport("gpflow")
 tf = pyimport("tensorflow")
-@show= ARGS[1]
+@show f = ARGS[1]
 try
     dict = load(f)
     problem_type = Dict("covtype"=>:classification,"heart"=>:classification,"HIGGS"=>:classification,"SUSY"=>:classification,"CASP"=>:regression,"airline"=>:regression)
@@ -15,7 +15,7 @@ try
     likelihood2problem = Dict("BernoulliLogit"=>:classification,"Matern32"=>:regression,"Matern32"=>:regression,"StudentT"=>:regression,"Laplace"=>:regression)
     likelihood_CAVI = Dict(:Logistic=>LogisticLikelihood(),:Matern32=>GenMatern32Likelihood(),
         :Laplace=>LaplaceLikelihood(),:StudentT=>StudentTLikelihood(3.0))
-    iter_points= vcat(1:9,10:5:99,100:50:999,1e3:1e3:(1e4-1),1e4:1e4:1e5)
+    global iter_points= vcat(1:9,10:5:99,100:50:999,1e3:200:(1e4-1),1e4:1000:1e5)
     file_name = dict[:file_name]
     problem = problem_type[file_name]
     base_file = datadir("datasets",string(problem),"large",file_name)
@@ -27,7 +27,8 @@ try
     if problem == :classification
         ys = unique(y)
         @assert length(ys) == 2
-        y[y.==ys[1]] .= 1; y[y.==ys[2]] .= -1
+        posy = y.==ys[1]; negy = y.==ys[2]
+        y[posy] .= 1; y[negy] .= -1
     elseif problem == :regression
         rescale!(y,obsdim=1)
     end

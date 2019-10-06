@@ -18,8 +18,13 @@ try
     for (i,r) in enumerate(files)
         @show fullpath = joinpath(tmpfolder,r)
         screenname = "Conv_"*string(convdictlist[i][:file_name])*"_"*string(convdictlist[i][:likelihood])*"_"*string(convdictlist[i][:nInducing])*"_"*string(convdictlist[i][:nMinibatch])
-        submit = `screen -d -S $screenname -m julia $script $(fullpath)`# $(fullpath)`
+        global create_screen = `screen -dmS $screenname -m  MKL_NUM_THREADS=1`# $(fullpath)`
+        global submit = `screen -r $screenname -p 0 -X stuff "export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 ^M"`
+        global submit2 = `screen -r $screenname -p 0 -X stuff "julia $script $(fullpath) ^M"`
+        run(create_screen)
+        sleep(0.1)
         run(submit)
+        run(submit2)
     end
 catch e
     # rm(tmpfolder,recursive=true)
