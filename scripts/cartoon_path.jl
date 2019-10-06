@@ -43,7 +43,7 @@ elseif lname == "StudentT"
     global genlikelihood = GenStudentTLikelihood()
 end
 
-inits = [-10,120]
+inits = [-10,1]
 nIter = 100
 μ = zeros(1,nIter+1); μ[1] = inits[1]
 Σ = zeros(1,nIter+1); Σ[1] = inits[2]
@@ -59,9 +59,8 @@ end
 
 function cbflow(model,session,iter,X_test,y_test,valsGD)
     a = Vector{Float64}(undef,3)
-    model.anchor(session)
-    a[1]=model.q_mu.value[1]
-    a[2]=model.q_sqrt.value[1]^2
+    a[1]=model.q_mu.read_value(session)[1]
+    a[2]=(model.q_sqrt.read_value(session)[1])^2
     a[3] = session.run(model.likelihood_tensor)
     push!(valsGD,a)
 end
@@ -75,9 +74,21 @@ train!(amodel,iterations=nIter,callback=cb)
 ##
 valsGD = []
 GD_kernel = gpflow.kernels.RBF(nDim,lengthscales=l,ARD=true)
-gdmodel = gpflow.models.SVGP(X, Float64.(reshape(y,(length(y),1))),kern=deepcopy(GD_kernel),likelihood=likelihood_GD[Symbol(lname)],num_latent=1,Z=mean(X,dims=1))
-run_grads_with_adam(gdmodel,nIter*10,[],[],valsGD,ind_points_fixed=true,kernel_fixed=true,callback=cbflow,Stochastic=false)
-gdmodel.q_mu.value
+gdmodel = gpflow.models.SVGP(X, Float64.(reshape(y,(length(y),1))),kern=deepcopy(GD_kernel),likelihood=likelihood_GD[Symbol(lname)],num_latent=1,Z=mean(X,dims=1),q_mu=[[inits[1]]])
+# ,q_sqrt=reshape([sqrt(inits[2])],:,1)
+run_grads_with_adam(gdmodel,nIter*100,[],[],valsGD,ind_points_fixed=true,kernel_fixed=true,callback=cbflow,Stochastic=false)
+# gdmodel.q_mu.set_value()[1] = inits[1]
+# gdmodel.q_sqrt.value[1] = sqrt(inits[2])
+valsGD=copy(hcat(valsGD...)')
+##
+valsNGD = []
+NGD_kernel = gpflow.kernels.RBF(nDim,lengthscales=l,ARD=true)
+ngdmodel = gpflow.models.SVGP(X, Float64.(reshape(y,(length(y),1))),kern=deepcopy(GD_kernel),likelihood=likelihood_GD[Symbol(lname)],num_latent=1,Z=mean(X,dims=1),q_mu=[[inits[1]]])
+# ,q_sqrt=reshape([sqrt(inits[2])],:,1)
+run_nat_grads_with_adam(ngdmodel,nIter*100,[],[],valsNGD,ind_points_fixed=true,kernel_fixed=true,callback=cbflow,Stochastic=false)
+# gdmodel.q_mu.set_value()[1] = inits[1]
+# gdmodel.q_sqrt.value[1] = sqrt(inits[2])
+valsNGD=copy(hcat(valsNGD...)')
 
 ##
 μopt = copy(amodel.μ[1])
@@ -117,8 +128,12 @@ function create_grid(model,dim,limsμ,limsΣ,nGrid)
 end
 pyplot()
 limsμ = max(abs(inits[1]),abs(μopt[1]))*1.1
+limsμ = max(abs(inits[1]),abs(μopt[1]))*1.1
 limsΣ = max(abs(log10(inits[2])),abs(log10(Σopt[1])))*1.1
-grid,rangeμ,rangeΣ = create_grid(amodel,dim_pick,(-limsμ,limsμ),(-limsΣ,limsΣ),30)
-contour(rangeμ,log10.(rangeΣ),log10.(-grid),colorbar=false)
-plot!(μ[:],log10.(Σ[:]),lw=3.0,color=:blue,xlims=(-limsμ,limsμ),ylims=(-limsΣ,limsΣ),lab="") |>display
+grid,rangeμ,rangeΣ = create_grid(amodel,dim_pick,(-12,5),(-5,2),50)
+##
+contourf(rangeμ,log10.(rangeΣ),log10.(-grid)',colorbar=false,levels=50)
+plot!(μ[:],log10.(Σ[:]),lw=3.0,color=colors[1],xlims=extrema(rangeμ),ylims=log10.(extrema(rangeΣ)),lab="AACI",legend=:bottomleft) |>display
+plot!(valsGD[:,1],log10.(valsGD[:,2]),lw=3.0,color=colors[2],lab="ADAM VI") |>display
+plot!(valsNGD[:,1],log10.(valsNGD[:,2]),lw=3.0,color=colors[5],lab="NGD VI") |>display
 savefig("test.png")

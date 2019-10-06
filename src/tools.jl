@@ -190,8 +190,9 @@ function csv2h5(file_name::String,classification=false)
     if classification
         y = data[:,1]
         ys = unique(y)
-        length(ys) == 2
-        y[y.==ys[1]] .= 1; y[y.==ys[2]] .= -1;
+        @assert length(ys) == 2
+        yones = y.==ys[1]; ynegones = y.==ys[2]
+        y[ones] .= 1; y[ynegones] .= -1;
         data[:,1] .= y
     end
     if isfile(file_short*".h5")
