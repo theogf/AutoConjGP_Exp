@@ -101,7 +101,7 @@ end
 
 function testmetric(model::AbstractGP,y_test,y_predic)
     if isa(model.likelihood,ClassificationLikelihood)
-        return mean(y_test.==sign.(y_predic))
+        return mean(y_test.==sign.(y_predic.-0.5))
     elseif isa(model.likelihood,RegressionLikelihood)
         return norm(y_test-y_predic)/sqrt(length(y_test))
     else
@@ -111,7 +111,7 @@ end
 
 function testmetric(model::PyObject,y_test,y_predic)
     if likelihood2problem[model.likelihood.name] == :classification
-        return mean(y_test.==sign.(y_predic))
+        return mean(y_test.==sign.(y_predic.-0.5))
     elseif likelihood2problem[model.likelihood.name] == :regression
         return norm(y_test-y_predic)/sqrt(length(y_test))
     else

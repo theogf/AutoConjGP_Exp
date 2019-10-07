@@ -16,13 +16,12 @@ method_name = Dict(:CAVI=>"AACI (ours)",:NGD=>"NGD VI",:GD=>"ADAM SVI")
 
 # for likelihood in [:Laplace,:Logistic,:Matern32,:StudentT]
     likelihood = :Logistic
-    file_name = likelihood == :Logistic ? "SUSY" : "CASP"
+    file_name = likelihood == :Logistic ? "covtype" : "CASP"
     x_axis = :time; nIter= 40000
     # file_name = "covtype"
     res = collect_results(datadir("part_3",file_name))
-    res.results
     results = @linq vcat(res.results...) |> where(:likelihood .== likelihood)
-    default(lw=4.0,legendfontsize=18,dpi=600,tickfontsize=16,guidefontsize=18)
+    default(lw=4.0,legendfontsize=18,dpi=600,tickfontsize=16,guidefontsize=18,legend=false)
     for nInducing in [100,200,500], nMinibatch in [50,100,200]
         # nInducing = 100; nMinibatch = 100;# nIter = 40000
         @info "$((nInducing,nMinibatch))"
