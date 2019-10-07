@@ -10,7 +10,7 @@ using LaTeXStrings
 using Plots; pyplot()
 
 
-nInducing = 200; nMinibatch = 100
+nInducing = 200; nMinibatch = 100;  nIter= 50000
 metric_name = Dict("Matern32"=>"RMSE","StudentT"=>"RMSE","Laplace"=>"RMSE","Logistic"=>"Accuracy")
 method_name = Dict(:CAVI=>"AACI (ours)",:NGD=>"NGD VI",:GD=>"ADAM SVI")
 like2dataset= Dict(:Logistic=>["covtype","SUSY"],:Laplace=>["airline","CASP"],:StudentT=>["airline","CASP"],:Matern32=>["airline","CASP"])
@@ -29,14 +29,15 @@ tlabel = "Training time  in seconds (log scale)"
 for i in 1:length(datasets_list)
     @info "Doing dataset $(datasets_list[i]) with $(likelihood_list[i]) likelihood"
     res = collect_results(datadir("part_3",datasets_list[i]))
-    x_axis = :time; nIter= 40000
+    x_axis = :time;
     likelihood = likelihood_list[i]
     # file_name = "covtype"
-    results = @linq vcat(res.results...) |> where(:likelihood .== likelihood) |> where(:nMinibatch .== nMinibatch) |> where(:nInducing .== nInducing)
+    global results = @linq vcat(res.results...) |> where(:likelihood .== likelihood) |> where(:nMinibatch .== nMinibatch) |> where(:nInducing .== nInducing)
     pmetric = plot(ylabel=i==1 ? "Test Error" : "")
     pnll = plot(ylabel=i==1 ? "Negative Test\n Log Likelihood" : "",title="$(datasets_list[i]) ($(likelihood_list[i]))",legend=i==1 ? :topright : false)
     for (i,type) in enumerate(unique(results.model))
         res = @linq results |> where(:model.==type)
+        # @show sample_i = findfirst(x->in(x.i[end],[nIter-10000,nIter]),res.training_df)
         if x_axis == :iter
             iters = res.training_df[1].i
             plot!(pmetric,iters,res.training_df[1].metric,xaxis=:log,lab=method_name[type],xlabel="",color=colors[i])

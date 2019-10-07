@@ -31,19 +31,34 @@ end
     end
 end
 
+struct Matern32Turing{T} <: ContinuousUnivariateDistribution
+    μ::T
+end
+
+Distributions.logpdf(d::Matern32Turing,x::Real) = log(one(x)+sqrt(3*abs2(x-d.μ)))-sqrt(3*abs2(x-d.μ))
+
+@model matern32model(x,y,L) = begin
+    z ~ MvNormal(zeros(length(y)),I)
+    f = L*z
+    for i in 1:size(x,1)
+        y[i] ~ Matern32Turing(f[i])
+    end
+end
+
+
 defaultdictsamp = Dict(:nChains=>5,:nSamples=>10000,:file_name=>"housing",
                     :likelihood=>:StudentT,
                     :doHMC=>!true,:doMH=>!true,:doNUTS=>!true,:doGibbs=>!true,:doGP=>!true)
 dictlistsamp = Dict(:nChains=>5,:nSamples=>10000,:file_name=>"housing",
-                    :likelihood=>:StudentT,:epsilon=>[0.1],:n_steps=>[10],
-                    :doHMC=>!true,:doMH=>!true,:doNUTS=>!true,:doGibbs=>!true,:doGP=>true)
+                    :likelihood=>:Matern32,:epsilon=>[0.1],:n_steps=>[10],
+                    :doHMC=>!true,:doMH=>true,:doNUTS=>!true,:doGibbs=>true,:doGP=>!true)
 dictlistsamp = dict_list(dictlistsamp)
 ν = 3.0
 β_l = 1.0
-likelihood2gibbs = Dict(:Logistic=>LogisticLikelihood(),:Laplace=>LaplaceLikelihood(β_l),:StudentT=>StudentTLikelihood(ν))
-likelihood2turing = Dict(:Logistic=>logisticmodel,:Laplace=>laplacemodel,:StudentT=>studenttmodel)
+likelihood2gibbs = Dict(:Logistic=>LogisticLikelihood(),:Laplace=>LaplaceLikelihood(β_l),:StudentT=>StudentTLikelihood(ν),:Matern32=>Matern3_2Likelihood())
+likelihood2turing = Dict(:Logistic=>logisticmodel,:Laplace=>laplacemodel,:StudentT=>studenttmodel,:Matern32=>matern32model)
 likelihood2gp = Dict(:Logistic=>BernLik(),:StudentT=>StuTLik(Int(ν),1.0))
-likelihood2ptype = Dict(:Logistic=>:classification,:Laplace=>:regression,:StudentT=>:regression)
+likelihood2ptype = Dict(:Logistic=>:classification,:Laplace=>:regression,:StudentT=>:regression,:Matern32=>:regression)
 
 ## Parameters and data
 function sample_exp(dict=defaultdictsamp)
