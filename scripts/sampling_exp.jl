@@ -31,12 +31,12 @@ end
     end
 end
 
-defaultdictsamp = Dict(:nChains=>5,:nSamples=>10000,:file_name=>"heart",
-                    :likelihood=>:Logistic,
-                    :doHMC=>!true,:doMH=>!true,:doNUTS=>!true,:doGibbs=>!true,:doGP=>true)
+defaultdictsamp = Dict(:nChains=>5,:nSamples=>10000,:file_name=>"housing",
+                    :likelihood=>:StudentT,
+                    :doHMC=>!true,:doMH=>!true,:doNUTS=>!true,:doGibbs=>!true,:doGP=>!true)
 dictlistsamp = Dict(:nChains=>5,:nSamples=>10000,:file_name=>"housing",
                     :likelihood=>:StudentT,:epsilon=>[0.1],:n_steps=>[10],
-                    :doHMC=>true,:doMH=>!true,:doNUTS=>!true,:doGibbs=>!true,:doGP=>!true)
+                    :doHMC=>!true,:doMH=>!true,:doNUTS=>!true,:doGibbs=>!true,:doGP=>true)
 dictlistsamp = dict_list(dictlistsamp)
 ν = 3.0
 β_l = 1.0
@@ -68,10 +68,11 @@ function sample_exp(dict=defaultdictsamp)
         @assert length(ys) == 2
         y[y.==ys[1]].= 1; y[y.==ys[2]].= -1
         y_turing = Int64.((y.+1.0)./2)
-        y_gp = Vector(Bool.(y_turing))
+        global y_gp = Vector(Bool.(y_turing))
     elseif likelihood2ptype[likelihood] == :regression
         rescale!(y,obsdim=1);
         y_turing = copy(y)
+        y_gp = copy(y)
     end
 
     kernel = RBFKernel(l)
@@ -109,7 +110,7 @@ function sample_exp(dict=defaultdictsamp)
         epsilon = dict[:epsilon]; n_step = dict[:n_steps]
         for i in 1:nChains
             @info "Turing chain $i/$nChains"
-            t = @elapsed HMCchain = sample(likelihood2turing[likelihood](X,y_turing,L), HMC(nSamples,epsilon,n_step))
+            t = @elapsed HMCchain = sample(likelihood2turing[likelihood](X,y_turing,L), HMC(epsilon,n_step),nSamples)
             push!(HMCchains,HMCchain)
             push!(times_HMC,t)
         end
@@ -161,14 +162,14 @@ function sample_exp(dict=defaultdictsamp)
         @info "Trying with GaussianProcesses.jl"
         times_GP = []
         GPchains = []
+        GPsamples = zeros(nSamples,N,nChains)
         gpmodel = GPMC(copy(X'),y_gp,MeanZero(),SE(log(l),0.0),likelihood2gp[likelihood])
         for i in 1:nChains
             @info "GP chain $i/$nChains"
-            t = @elapsed GPchain = copy(mcmc(gpmodel,nIter=nSamples,burn=1,thin=1)')
-            push!(GPchains,GPchain)
+            t = @elapsed GPsamples[:,:,i] = copy(mcmc(gpmodel,nIter=nSamples,burn=1,thin=1)[1:end-3,:]')
             push!(times_GP,t)
         end
-        chains = DataFrame(chainscat(GPchains...))
+        chains = DataFrame(Chains(GPsamples,string.("f[",1:N,"]")))
         infos = DataFrame(reshape(["GP",nSamples,mean(times_GP),0,0,0,0],1,:),[:alg,:nSamples,:time,:epsilon,:n_step,:n_adapt,:accept])
         @tagsave(datadir("part_1",string(likelihood),savename("GP",params_samp,"bson")), @dict chains infos)
         push!(all_chains,chains)
