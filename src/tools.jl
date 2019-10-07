@@ -134,13 +134,12 @@ function testloglikelihood(model::PyObject,y_test,y_predic)
         return mean(vcat(log.(max.(y_predic[y_test.==1],1e-8)),log.(max.(1.0.-y_predic[y_test.==-1],1e-8))))
     elseif likelihood2problem[model.likelihood.name] == :regression
         if model.likelihood.name == "Matern32"
-            logpdf.(GenMatern32Likelihood(),y_test,y_predic)
+            AGP.logpdf.(GenMatern32Likelihood(),y_test,y_predic)
         elseif model.likelihood.name == "StudentT"
             logpdf.(TDist(3.0),y_test.-y_predic)
         elseif model.likelihood.name == "Laplace"
             logpdf.(Laplace.(y_test),y_predic)
-        end
-        return mean(logp)
+        end |> mean
     else
         @error "Likelihood not recognized"
     end
