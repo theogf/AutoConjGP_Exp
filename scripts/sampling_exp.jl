@@ -34,9 +34,9 @@ end
 defaultdictsamp = Dict(:nChains=>5,:nSamples=>10000,:file_name=>"heart",
                     :likelihood=>:Logistic,
                     :doHMC=>!true,:doMH=>!true,:doNUTS=>!true,:doGibbs=>!true,:doGP=>true)
-dictlistsamp = Dict(:nChains=>5,:nSamples=>10000,:file_name=>"heart",
-                    :likelihood=>:Logistic,:epsilon=>[0.01,0.05,0.1,0.5],:n_steps=>[1,2,5,10],
-                    :doHMC=>true,:doMH=>!true,:doNUTS=>!true,:doGibbs=>!true,:doGP=>true)
+dictlistsamp = Dict(:nChains=>5,:nSamples=>10000,:file_name=>"housing",
+                    :likelihood=>:StudentT,:epsilon=>[0.1],:n_steps=>[10],
+                    :doHMC=>true,:doMH=>!true,:doNUTS=>!true,:doGibbs=>!true,:doGP=>!true)
 dictlistsamp = dict_list(dictlistsamp)
 ν = 3.0
 β_l = 1.0
@@ -177,5 +177,5 @@ function sample_exp(dict=defaultdictsamp)
     return all_chains,times
 end
 
-chains, times = sample_exp()
-# map(sample_exp,dictlistsamp)
+# chains, times = sample_exp()
+map(sample_exp,dictlistsamp)

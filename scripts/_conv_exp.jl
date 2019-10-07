@@ -8,6 +8,9 @@ tf = pyimport("tensorflow")
 @show f = ARGS[1]
 try
     dict = load(f)
+    # dict = Dict(:time_max=>1e4,:conv_max=>200,:file_name=>"covtype",
+                            # :nInducing=>50,:nMinibatch=>10,:likelihood=>:Logistic,
+                            # :doCAVI=>!true,:doGD=>true,:doNGD=>!true)
     global problem_type = Dict("covtype"=>:classification,"heart"=>:classification,"HIGGS"=>:classification,"SUSY"=>:classification,"CASP"=>:regression,"airline"=>:regression)
 
     likelihood_GD = Dict(:Logistic=>py"BernoulliLogit()",:Matern32=>py"Matern32()",
@@ -45,10 +48,10 @@ try
     nMinibatch = dict[:nMinibatch]
     nInducing = dict[:nInducing]
     N_test_max = 10000
-    @info "Created inducing points location matrix"
     params = @ntuple(likelihood,nMinibatch,nInducing,nIter)
     for ((X_train,y_train),(X_test,y_test)) in kfolds((X,y),10,obsdim=1)
         Z = AugmentedGaussianProcesses.KMeansInducingPoints(X_train,nInducing,nMarkov=10)
+        @info "Created inducing points location matrix"
         if length(y_test) > N_test_max
             subset = sample(1:length(y_test),N_test_max,replace=false)
             X_test = X_test[subset,:]
