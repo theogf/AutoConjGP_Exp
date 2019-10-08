@@ -8,11 +8,14 @@ tf = pyimport("tensorflow")
 @show f = ARGS[1]
 try
     dict = load(f)
-    problem_type = Dict("covtype"=>:classification,"heart"=>:classification,"HIGGS"=>:classification,"SUSY"=>:classification,"CASP"=>:regression,"airline"=>:regression)
+    # dict = Dict(:time_max=>1e4,:conv_max=>200,:file_name=>"covtype",
+                            # :nInducing=>50,:nMinibatch=>10,:likelihood=>:Logistic,
+                            # :doCAVI=>!true,:doGD=>true,:doNGD=>!true)
+    global problem_type = Dict("covtype"=>:classification,"heart"=>:classification,"HIGGS"=>:classification,"SUSY"=>:classification,"CASP"=>:regression,"airline"=>:regression)
 
     likelihood_GD = Dict(:Logistic=>py"BernoulliLogit()",:Matern32=>py"Matern32()",
         :Laplace=>py"Laplace()",:StudentT=>py"gpflow.likelihoods.StudentT(3.0)")
-    likelihood2problem = Dict("BernoulliLogit"=>:classification,"Matern32"=>:regression,"Matern32"=>:regression,"StudentT"=>:regression,"Laplace"=>:regression)
+    global likelihood2problem = Dict("BernoulliLogit"=>:classification,"Matern32"=>:regression,"Matern32"=>:regression,"StudentT"=>:regression,"Laplace"=>:regression)
     likelihood_CAVI = Dict(:Logistic=>LogisticLikelihood(),:Matern32=>GenMatern32Likelihood(),
         :Laplace=>LaplaceLikelihood(),:StudentT=>StudentTLikelihood(3.0))
     global iter_points= vcat(1:9,10:5:99,100:50:999,1e3:200:(1e4-1),1e4:1000:1e5)
@@ -22,7 +25,7 @@ try
 
     ## Load and preprocess the data
     global data = isfile(base_file*".h5") ? h5read(base_file*".h5","data") : Matrix(CSV.read(base_file*".csv",header=false))
-    X = data[:,2:end]; y = data[:,1]; rescale!(X,obsdim=1);
+    X = data[:,2:end]; y = data[:,1];  rescale!(X,obsdim=1);
     (N,nDim) = size(X)
     if problem == :classification
         ys = unique(y)
@@ -44,11 +47,11 @@ try
     likelihood = dict[:likelihood]
     nMinibatch = dict[:nMinibatch]
     nInducing = dict[:nInducing]
-    Z = AugmentedGaussianProcesses.KMeansInducingPoints(X,nInducing,nMarkov=10)
     N_test_max = 10000
-    @info "Created inducing points location matrix"
     params = @ntuple(likelihood,nMinibatch,nInducing,nIter)
     for ((X_train,y_train),(X_test,y_test)) in kfolds((X,y),10,obsdim=1)
+        Z = AugmentedGaussianProcesses.KMeansInducingPoints(X_train,nInducing,nMarkov=10)
+        @info "Created inducing points location matrix"
         if length(y_test) > N_test_max
             subset = sample(1:length(y_test),N_test_max,replace=false)
             X_test = X_test[subset,:]
@@ -116,7 +119,7 @@ try
         break;
     end
 catch e
-    rm(f)
+    # rm(f)
     rethrow(e)
 end
-rm(f)
+# rm(f)

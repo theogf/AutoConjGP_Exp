@@ -76,11 +76,12 @@ function unfold_chains(chain::DataFrame,nSamples::Int)
     Chains(samples)
 end
 
+##
+include(srcdir("plots_tools.jl"))
 
-likelihood_name=  "StudentT"
-
+likelihood_name= "Laplace"
 data = CSV.read(plotsdir("part_1",likelihood_name,"results.csv"))
-epsilon = 0.05
+epsilon = 0.1
 n_steps = 10
 lagindices = 5:(5+9)
 
@@ -91,8 +92,8 @@ lagHMC = Vector(lagHMC[1,lagindices])
 lagMH = @linq data |> where(:alg.=="MH")
 lagMH = Vector(lagMH[1,lagindices])
 
-plot(xticks=collect(1:10),xlabel="Lag",ylabel="Correlation")
-plot!(1:10,lagGS,lab="Gibbs Sampling")
-plot!(1:10,lagHMC,lab="HMC")
-plot!(1:10,lagMH,lab="MH")
+plot(xticks=collect(1:10),xlabel="Lag",ylabel="Correlation",legend=:right,title=likelihood_name*" Likelihood")
+plot!(1:10,lagGS,lab="Gibbs (ours)",color=colors[1])
+plot!(1:10,lagHMC,lab="HMC",color=colors[2])
+plot!(1:10,lagMH,lab="MH",color=colors[3]) |> display
 savefig(plotsdir("part_1",likelihood_name,"lag_plot.png"))
