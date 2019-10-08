@@ -60,7 +60,7 @@ jointpdf =zeros(nx,nw)
 for i in 1:nx, j in 1:nw
     jointpdf[i,j]= augll(xrange[i],wrange[j],y)*pdf(AGP.PolyaGammaDist(),wrange[j],1,0)*pdf(Normal(0,sqrt(K[1])),xrange[i])
 end
-contourf(xrange,wrange,jointpdf',colorbar=false,xlabel=L"f",ylabel=L"\omega")
+contourf(xrange,wrange,jointpdf',colorbar=false,levels=40,color=:blues,xlabel=L"f",ylabel=L"\omega")
 iter = 50
 function gibbs_samp()
     f = -2.0
@@ -81,7 +81,7 @@ function gibbs_samp()
     return fs,ws
 end
 fs,ws=gibbs_samp()
-plot!(fs,ws,color=:red,lab="",alpha=10/iter,lw=3.0,markersize=8.0,marker=:cross,markerstrokewidth=0.0,xlims=extrema(xrange),ylims=extrema(wrange))|>display
+plot!(fs,ws,color=:red,lab="",title=L"p(f,\omega|y)",alpha=10/iter,lw=3.0,markersize=8.0,marker=:cross,markerstrokewidth=0.0,xlims=extrema(xrange),ylims=extrema(wrange))|>display
 savefig(plotsdir("figures","gibbs_path.png"))
 
 ##
