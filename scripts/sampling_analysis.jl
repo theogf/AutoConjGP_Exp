@@ -2,49 +2,46 @@ using DrWatson
 quickactivate(joinpath("..",@__DIR__))
 include(joinpath(srcdir(),"intro.jl"))
 using Turing, MCMCChains
+using DataFramesMeta
 using AugmentedGaussianProcesses
 using MLDataUtils, CSV, StatsFuns
-
-likelihood_name = "Laplace"
+##
+likelihood_name = "Matern32"
 nSamples = 10000
+epsilon = 0.1; n_step = 10
 
 res = collect_results(datadir("part_1",likelihood_name),white_list=[:infos])
 infos = vcat(res.infos...)
-valid = findall(x->x==nSamples,infos.nSamples)
+infosHMC = @linq infos |> where(:alg.=="HMC",:epsilon.==epsilon,:n_step.==n_step)
+# infosHMC =  @linq infos |> where(:alg.=="GP",:nSamples.==nSamples)
+# infosHMC.alg[1] = "HMC"; infosHMC.epsilon[1]=0.1; infosHMC.n_step[1]=10
+infosMH =  @linq infos |> where(:alg.=="MH",:nSamples.==nSamples)
+infosGS =  @linq infos |> where(:alg.=="GS",:nSamples.==nSamples)
 dfresults = []
-# param_name = @ntuple nSamples
-# chain = DrWatson.wload(datadir("part_1",likelihood_name,savename("MH",param_name,"bson")))[:chains]
-# chain = unfold_chains(chain,nSamples)
-# res = treat_chain(chain)
-@progress for v in valid
-    @info "Processing alg $(infos.alg[v]), epsilon $(infos.epsilon[v]), n_step $(infos.n_step[v])"
-    if infos.alg[v] == "HMC"
-        epsilon = infos.epsilon[v]; n_step = infos.n_step[v]
-        paramsHMC = @ntuple epsilon nSamples n_step
-        chain = DrWatson.wload(datadir("part_1",likelihood_name,savename("HMC",paramsHMC,"bson")))[:chains];
-        chain = unfold_chains(chain,nSamples);
-        @info "Chain loaded and unfolded"
-        dfchain = treat_chain(chain)
-        push!(dfresults,dfchain)
-    else
-        params = @ntuple nSamples
-        chain = DrWatson.wload(datadir("part_1",likelihood_name,savename(infos.alg[v],params,"bson")))[:chains]
-        chain = unfold_chains(chain,nSamples)
-        @info "Chain loaded and unfolded"
-        dfchain = treat_chain(chain)
-        push!(dfresults,dfchain)
-    end
-    # chain = unfold_chains.(view(res.chains,valid),nSamples)
+# paramsHMC = @ntuple nSamples
+paramsHMC = @ntuple epsilon nSamples n_step
+# chain = DrWatson.wload(datadir("part_1",likelihood_name,savename("GP",paramsHMC,"bson")))[:chains];
+chain = DrWatson.wload(datadir("part_1",likelihood_name,savename("HMC",paramsHMC,"bson")))[:chains];
+chain = unfold_chains(chain,nSamples);
+@info "Chain loaded and unfolded"
+dfchain = treat_chain(chain)
+push!(dfresults,dfchain)
+for alg in ["MH","GS"]
+    params = @ntuple nSamples
+    chain = DrWatson.wload(datadir("part_1",likelihood_name,savename(alg,params,"bson")))[:chains]
+    chain = unfold_chains(chain,nSamples)
+    @info "Chain loaded and unfolded"
+    dfchain = treat_chain(chain)
+    push!(dfresults,dfchain)
 end
 
 # push!(dfresults,res)
 savedf = deepcopy(dfresults)
-results_infos = DataFrame(hcat(infos.alg[valid][1:length(savedf)],infos.epsilon[valid][1:length(savedf)],infos.n_step[valid][1:length(savedf)],infos.time[valid][1:length(savedf)]),[:alg,:epsilon,:n_step,:time])
-# push!(results_infos,["MH",0,0,infos.time[end]])
-results =  hcat(results_infos,vcat(dfresults...))
-sort!(results,[:epsilon,:n_step])
+results_infos = hcat(vcat(infosHMC,infosMH,infosGS),vcat(dfresults...))
+
+
 using CSVFiles
-safesave(plotsdir("part_1",likelihood_name,"results.csv"),results)
+save(plotsdir("part_1",likelihood_name,"results.csv"),results_infos)
 
 
 function treat_chain(chain)
@@ -59,10 +56,6 @@ function treat_chain(chain)
     symbols = vcat([Symbol(:lag,i) for i in 1:10],[:mixtime,:gelman])
     return DataFrame(vals,symbols)
 end
-results_analysis = vcat(treat_chain.(chains)...)
-results_analysis= hcat(infos.alg[valid],results_analysis)
-unsafesave()
-
 
 function unfold_chains(chain::DataFrame,nSamples::Int)
     nTot = length(chain[!,1])
@@ -79,11 +72,11 @@ end
 ##
 include(srcdir("plots_tools.jl"))
 
-likelihood_name= "Laplace"
+likelihood_name= "Matern32"
 data = CSV.read(plotsdir("part_1",likelihood_name,"results.csv"))
 epsilon = 0.1
 n_steps = 10
-lagindices = 5:(5+9)
+lagindices = 8:(8+9)
 
 lagGS = @linq data |> where(:alg.=="GS")
 lagGS = Vector(lagGS[1,lagindices])
@@ -94,6 +87,6 @@ lagMH = Vector(lagMH[1,lagindices])
 
 plot(xticks=collect(1:10),xlabel="Lag",ylabel="Correlation",legend=:right,title=likelihood_name*" Likelihood")
 plot!(1:10,lagGS,lab="Gibbs (ours)",color=colors[1])
-plot!(1:10,lagHMC,lab="HMC",color=colors[2])
-plot!(1:10,lagMH,lab="MH",color=colors[3]) |> display
+plot!(1:10,lagHMC,lab="HMC",linestyle=color=colors[2])
+plot!(1:10,lagMH,lab="MH",linestyle=:dash,color=colors[3]) |> display
 savefig(plotsdir("part_1",likelihood_name,"lag_plot.png"))
