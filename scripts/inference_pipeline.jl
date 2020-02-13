@@ -1,6 +1,8 @@
 using DrWatson
 quickactivate(joinpath(@__DIR__,".."))
 # include(joinpath(srcdir(),"intro.jl"))
+using Colors
+include(joinpath(srcdir(),"plots_tools.jl"))
 using AugmentedGaussianProcesses; const AGP = AugmentedGaussianProcesses
 using Statistics, StatsFuns, Distributions
 using MLDataUtils, CSV, LinearAlgebra, LaTeXStrings, SpecialFunctions
@@ -17,7 +19,7 @@ X_test = collect(range(-0.2,1.2,length=nGrid))
 K = kernelmatrix(X,kernel)
 
 
-default(guidefontsize=18,tickfontsize=15,legendfontsize=20,titlefontsize=22.0)
+default(guidefontsize=18,tickfontsize=18,legendfontsize=20,titlefontsize=22.0)
 ## p(y|f)
 nx = 200
 extremaf= 4
@@ -56,12 +58,12 @@ plot(pcondf,pcondw,layout=(2,1))|>display
 savefig(plotsdir("figures","cond_p_f_omega.png"))
 
 ##
+
 jointpdf =zeros(nx,nw)
 for i in 1:nx, j in 1:nw
     jointpdf[i,j]= augll(xrange[i],wrange[j],y)*pdf(AGP.PolyaGammaDist(),wrange[j],1,0)*pdf(Normal(0,sqrt(K[1])),xrange[i])
 end
-contourf(xrange,wrange,jointpdf',colorbar=false,levels=40,color=:blues,xlabel=L"f",ylabel=L"\omega")
-iter = 50
+iter = 30
 function gibbs_samp()
     f = -2.0
     w = 0.5
@@ -81,7 +83,15 @@ function gibbs_samp()
     return fs,ws
 end
 fs,ws=gibbs_samp()
-plot!(fs,ws,color=:red,lab="",title=L"p(f,\omega|y)",alpha=10/iter,lw=3.0,markersize=8.0,marker=:cross,markerstrokewidth=0.0,xlims=extrema(xrange),ylims=extrema(wrange))|>display
+##
+L"p(f,\omega|y)"
+L"\omega"
+L"f"
+contourf(xrange,wrange,jointpdf',colorbar=false,levels=40,color=:blues,xlabel="",ylabel="",framestyle=:box)
+# annotate!([(-3.5,0.18,text(L"p(f,\omega|y)",30,:left))])
+# plot!([-3.75,-0.7],[0.3,0.3],fillrange=[0.06,0.06],lw=0.0,color=RGBA(1.0,1.0,1.0,0.6))
+(p_gibbs = plot!(fs,ws,color=colors[3],lab="",title="Gibbs Sampling",alpha=0.9,lw=3.0,markersize=8.0,marker=:cross,markercolor=:black,markerstrokewidth=0.0,xlims=extrema(xrange),ylims=(0.0,0.8),ticks=[])) |> display
+
 savefig(plotsdir("figures","gibbs_path.png"))
 
 ##
@@ -96,12 +106,19 @@ function cb(model,iter)
     push!(mus,model.μ[1][1])
     push!(sigmas,model.Σ[1][1])
 end
-train!(model,iterations=10,callback=cb)
-grid,rangemu,rangesigma = create_grid(model,1,(-3,3),(-2,2),100)
+train!(model,iterations=4,callback=cb)
+grid,rangemu,rangesigma = create_grid(model,1,(-3.1,3.1),(-2,2),100)
 # maxgrid = maximum(grid)
-contourf(rangemu,rangesigma,log.(abs.(grid))',yaxis=:log,title=L"\mathcal{L}(\mathbf{m},\mathbf{S})",xlabel=L"\mathbf{m}",ylabel=L"\mathbf{S}",levels=100,colorbar=false)
-plot!(mus,sigmas,color=1,lw=5.0,marker=:cross,markersize=8.0,xlims=extrema(rangemu),ylims=extrema(rangesigma),lab="") |> display
-
+##
+L"\mathcal{L}(\mathbf{m},\mathbf{S})"
+L"\mathbf{S}"
+L"\mathbf{m}"
+p_vi = contour(rangemu,rangesigma,log.(abs.(grid))',yaxis=:log,title="",xlabel="",ylabel="",levels=5,colorbar=false,color=:blues_r,framestyle=:box)
+# annotate!([(-2.8,0.1,text(L"\mathcal{L}(\mathbf{m},\mathbf{S})",40,:left))])
+# plot!([-3.0,0.0],[0.3,0.3],fillrange=[0.04,0.04],lw=0.0,color=RGBA(1.0,1.0,1.0,0.8))
+f = font("Helvetica Neue")
+plot!(mus,sigmas,color=colors[3],lw=4.0,marker=:xcross,markersize=12.0,xlims=extrema(rangemu),ylims=extrema(rangesigma),lab="",msw=0.0,markercolor=:black,title="Variational Inference",titlefont=f,ticks=[]) |> display
+##
 function create_grid(model,dim,limsμ,limsΣ,nGrid)
     @assert dim <= model.nSample
     dim=1
@@ -130,3 +147,7 @@ function create_grid(model,dim,limsμ,limsΣ,nGrid)
     return ELBO_grid,rangeμ,rangeΣ
 end
 savefig(plotsdir("figures","vi_path.png"))
+##
+using Plots.PlotMeasures
+plot(p_vi,p_gibbs,layout=(2,1),margin=0px,dpi=300)
+savefig(plotsdir("figures","vi_gibbs.png"))

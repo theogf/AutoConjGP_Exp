@@ -12,14 +12,14 @@ using Plots; pyplot()
 
 nInducing = 200; nMinibatch = 100;  nIter= 50000
 metric_name = Dict("Matern32"=>"RMSE","StudentT"=>"RMSE","Laplace"=>"RMSE","Logistic"=>"Accuracy")
-method_name = Dict(:CAVI=>"AACI (ours)",:NGD=>"NGD VI",:GD=>"ADAM SVI")
+method_name = Dict(:CAVI=>"AACI (ours)",:NGD=>"NGD SVI",:GD=>"ADAM SVI")
 like2dataset= Dict(:Logistic=>["covtype","SUSY"],:Laplace=>["airline","CASP"],:StudentT=>["airline","CASP"],:Matern32=>["airline","CASP"])
 dataset2like = Dict("covtype"=>[:Logistic],"SUSY"=>[:Logistic],"airline"=>[:Laplace,:StudentT,:Matern32],"CASP"=>[:Laplace,:StudentT,:Matern32])
 
 datasets_list = ["covtype","SUSY","CASP","CASP","airline"]
 likelihood_list = [:Logistic,:Logistic,:Matern32,:Laplace,:StudentT]
 @assert length(datasets_list)==length(likelihood_list)
-default(lw=5.0,legendfontsize=18,titlefontsize=24,dpi=600,tickfontsize=16,guidefontsize=18,legend=false)
+default(lw=5.0,legendfontsize=18,titlefontsize=24,dpi=600,tickfontsize=16,guidefontsize=24,legend=false)
 dataset_name = Dict("covtype"=>"Covtype","SUSY"=>"SUSY","CASP"=>"Protein","airline"=>"Airline","HIGGS"=>"HIGGS")
 
 @info "Inducing,Minibatch : $((nInducing,nMinibatch))"
@@ -33,8 +33,8 @@ for i in 1:length(datasets_list)
     likelihood = likelihood_list[i]
     # file_name = "covtype"
     global results = @linq vcat(res.results...) |> where(:likelihood .== likelihood) |> where(:nMinibatch .== nMinibatch) |> where(:nInducing .== nInducing)
-    pmetric = plot(ylabel=i==1 ? "Test Error" : "")
-    pnll = plot(ylabel=i==1 ? "Negative Test\n Log Likelihood" : "",title="$(dataset_name[datasets_list[i]]) ($(likelihood_list[i]))",legend=i==1 ? :topright : false)
+    pmetric = plot(ylabel=i==1 ? "Test Error/\nRMSE" : "")
+    pnll = plot(ylabel=i==1 ? "Negative Test\nLog Likelihood" : "",title="$(dataset_name[datasets_list[i]]) ($(likelihood_list[i]))",legend=i==1 ? :topright : false)
     for (i,type) in enumerate(unique(results.model))
         res = @linq results |> where(:model.==type)
         # @show sample_i = findfirst(x->in(x.i[end],[nIter-10000,nIter]),res.training_df)
@@ -61,6 +61,6 @@ l = @layout [Plots.grid(2,length(nllps),heights=[0.5,0.5])
                  p{0.05h}]
 allps = vcat(nllps,metricps,[p_bottom])
 
-(p = Plots.plot(allps...,layout=l,size=(1953,floor(Int64,0.7*850)),dpi=300)) |> display
+(p = Plots.plot(allps...,layout=l,size=(1953,floor(Int64,0.6*850)),dpi=300)) |> display
 param_plots = @ntuple nInducing nMinibatch
 savefig(p,plotsdir("figures",savename("ConvPlot",param_plots,"png")))

@@ -11,33 +11,33 @@ using Plots; pyplot()
 
 
 
-metric_name = Dict("Matern32"=>"RMSE","StudentT"=>"RMSE","Laplace"=>"RMSE","Logistic"=>"Accuracy")
+metric_name = Dict("Matern32"=>"RMSE","StudentT"=>"RMSE","Laplace"=>"RMSE","Logistic"=>"Test Error")
 method_name = Dict(:CAVI=>"AACI (ours)",:NGD=>"NGD VI",:GD=>"ADAM SVI")
-datasets= Dict(:Logistic=>["covtype","SUSY"],:Laplace=>["airline","CASP"],:StudentT=>["airline","CASP"],:Matern32=>["airline","CASP"])
-datatolike = Dict("covtype"=>[:Logistic],"SUSY"=>[:Logistic],"airline"=>[:Laplace,:StudentT,:Matern32],"CASP"=>[:Laplace,:StudentT,:Matern32])
+datasets= Dict(:Logistic=>["covtype","SUSY","HIGGS"],:Laplace=>["airline","CASP"],:StudentT=>["airline","CASP"],:Matern32=>["airline","CASP"])
+datatolike = Dict("HIGGS"=>[:Logistic],"covtype"=>[:Logistic],"SUSY"=>[:Logistic],"airline"=>[:Laplace,:StudentT,:Matern32],"CASP"=>[:Laplace,:StudentT,:Matern32])
 
-for file_name in ["covtype","SUSY","CASP","airline"]
+for file_name in ["HIGGS"]
     @info "Doing dataset $file_name"
-    res = collect_results(datadir("part_3",file_name))
+    datares = collect_results(datadir("part_3",file_name))
     for likelihood in datatolike[file_name]
         @info "Doing likelihood $likelihood"
     # likelihood = :Logistic
     # file_name = likelihood == :Logistic ? "covtype" : "CASP"
-    x_axis = :time; nIter= 40000
+    x_axis = :time; nIter= 50000
     # file_name = "covtype"
-    results = @linq vcat(res.results...) |> where(:likelihood .== likelihood)
+    results = @linq vcat(datares.results...) |> where(:likelihood .== likelihood)
     default(lw=4.0,legendfontsize=18,dpi=600,tickfontsize=16,guidefontsize=18,legend=false)
-    for nInducing in [100,200,500], nMinibatch in [50,100,200]
-        # nInducing = 100; nMinibatch = 100;# nIter = 40000
+    # for nInducing in [100,200,500], nMinibatch in [50,100,200]
+        nInducing = 200; nMinibatch = 100;# nIter = 40000
         @info "$((nInducing,nMinibatch))"
-        refined_results = @linq results |> where(:nMinibatch .== nMinibatch) |> where(:nInducing .== nInducing)
+        refined_results = @linq results |> where(:nMinibatch .== nMinibatch,:nInducing .== nInducing)
         if size(refined_results,1) == 0
             continue;
         end
         ##
-        pelbo = plot(ylabel="")#Neg. ELBO")
-        pmetric =  plot(ylabel="")#metric_name[string(likelihood)])
-        pnll = plot(ylabel="")#Negative Log Likelihood")
+        pelbo = plot(ylabel="Neg. ELBO")
+        pmetric =  plot(ylabel="$(metric_name[string(likelihood)])")
+        pnll = plot(ylabel="Negative Log Likelihood")
         tlabel = "Training time  in seconds (log scale)"
         for (i,type) in enumerate(unique(refined_results.model))
             res = @linq refined_results |> where(:model.==type)
@@ -60,12 +60,6 @@ for file_name in ["covtype","SUSY","CASP","airline"]
         savefig(pelbo,plotsdir("part_3",savename("ELBO",param_plots,"png")))
         savefig(pmetric,plotsdir("part_3",savename("METRIC",param_plots,"png")))
         savefig(pnll,plotsdir("part_3",savename("NLL",param_plots,"png")))
-    end
+    # end
     end
 end
-
-
-using ImageMagick
-img = load("/home/theo/experiments/AutoConj/plots/part_3/METRIC_file_name=SUSY_likelihood=Logistic_nInducing=100_nMinibatch=50_x_axis=time.png")
-
-plot(img)
