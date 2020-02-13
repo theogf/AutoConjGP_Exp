@@ -1,11 +1,12 @@
 using DrWatson
-quickactivate(joinpath("..",@__DIR__))
-include(joinpath(srcdir(),"intro.jl"))
+quickactivate(@__DIR__,"AutoConjugate")
+include(srcdir("intro.jl"))
 using Turing, MCMCChains
 using AugmentedGaussianProcesses
 using MLDataUtils, CSV, StatsFuns, HDF5
-using GaussianProcesses
 Turing.setadbackend(:reverse_diff)
+
+### Defining the Turing models for HMC and Gibbs
 
 @model laplacemodel(x,y,L) = begin
     z ~ MvNormal(zeros(length(y)),I)
@@ -45,38 +46,40 @@ Distributions.logpdf(d::Matern32Turing,x::Real) = log(one(x)+sqrt(3*abs2(x-d.μ)
     end
 end
 
+### Create a dictionary of parameters to work with dict_list creates an array of dictionaries
 
 defaultdictsamp = Dict(:nChains=>5,:nSamples=>10000,:file_name=>"housing",
                     :likelihood=>:StudentT,
-                    :doHMC=>!true,:doMH=>!true,:doNUTS=>!true,:doGibbs=>!true,:doGP=>!true)
+                    :doHMC=>!true,:doMH=>!true,:doNUTS=>!true,:doGibbs=>!true)
 dictlistsamp = Dict(:nChains=>5,:nSamples=>10000,:file_name=>"housing",
                     :likelihood=>:Matern32,:epsilon=>[0.1],:n_steps=>[10],
-                    :doHMC=>!true,:doMH=>true,:doNUTS=>!true,:doGibbs=>true,:doGP=>!true)
+                    :doHMC=>!true,:doMH=>true,:doNUTS=>!true,:doGibbs=>true)
 dictlistsamp = dict_list(dictlistsamp)
+
 ν = 3.0
 β_l = 1.0
+## Mapping to use the same likelihood in all models
 likelihood2gibbs = Dict(:Logistic=>LogisticLikelihood(),:Laplace=>LaplaceLikelihood(β_l),:StudentT=>StudentTLikelihood(ν),:Matern32=>Matern3_2Likelihood())
 likelihood2turing = Dict(:Logistic=>logisticmodel,:Laplace=>laplacemodel,:StudentT=>studenttmodel,:Matern32=>matern32model)
-likelihood2gp = Dict(:Logistic=>BernLik(),:StudentT=>StuTLik(Int(ν),1.0))
 likelihood2ptype = Dict(:Logistic=>:classification,:Laplace=>:regression,:StudentT=>:regression,:Matern32=>:regression)
 
 ## Parameters and data
 function sample_exp(dict=defaultdictsamp)
-    nSamples = dict[:nSamples];
-    nChains = dict[:nChains];
-    file_name = dict[:file_name]
-    doGibbs = dict[:doGibbs]
-    doHMC = dict[:doHMC]
-    doNUTS = dict[:doNUTS]
-    doMH = dict[:doMH]
-    doGP = dict[:doGP]
-    likelihood = dict[:likelihood]
+    nSamples = dict[:nSamples]; # Number of samples to take
+    nChains = dict[:nChains]; # Number of chains
+    file_name = dict[:file_name] # Name of the dataset to load
+    doGibbs = dict[:doGibbs] # Flag for running Gibbs sampling
+    doHMC = dict[:doHMC] # Flag for running HMC
+    doNUTS = dict[:doNUTS] # Flag for running NUTS
+    doMH = dict[:doMH] # Flag for running Metropolis Hasting
+    likelihood = dict[:likelihood] # Likelihood name
     base_file = datadir("datasets",string(likelihood2ptype[likelihood]),"small",file_name)
     ## Load and preprocess the data
     data = isfile(base_file*".h5") ? h5read(base_file*".h5","data") : Matrix(CSV.read(base_file*".csv",header=false))
     y = data[:,1]; X = data[:,2:end]; (N,nDim) = size(X)
     rescale!(X,obsdim=1)
     l = initial_lengthscale(X)
+    # Readapt the target given the tool used
     y_turing = []
     if likelihood2ptype[likelihood] == :classification
         ys = unique(y)
@@ -90,11 +93,13 @@ function sample_exp(dict=defaultdictsamp)
         y_gp = copy(y)
     end
 
-    kernel = RBFKernel(l)
+    # Create a kernel and the kernel matrix with the cholesky decomposition
+    kernel = sqexponentialkernel(1/l)
     K = AugmentedGaussianProcesses.kernelmatrix(X,kernel)+1e-4*I
     L = Matrix(cholesky(K).L)
     burnin=1
     β = 1.0
+    # Empty containers for chains and times
     all_chains = []
     times = []
     params_samp = @ntuple(nSamples)
@@ -173,25 +178,11 @@ function sample_exp(dict=defaultdictsamp)
         push!(all_chains,chains)
         push!(times,times_MH)
     end
-    if doGP
-        @info "Trying with GaussianProcesses.jl"
-        times_GP = []
-        GPchains = []
-        GPsamples = zeros(nSamples,N,nChains)
-        gpmodel = GPMC(copy(X'),y_gp,MeanZero(),SE(log(l),0.0),likelihood2gp[likelihood])
-        for i in 1:nChains
-            @info "GP chain $i/$nChains"
-            t = @elapsed GPsamples[:,:,i] = copy(mcmc(gpmodel,nIter=nSamples,burn=1,thin=1)[1:end-3,:]')
-            push!(times_GP,t)
-        end
-        chains = DataFrame(Chains(GPsamples,string.("f[",1:N,"]")))
-        infos = DataFrame(reshape(["GP",nSamples,mean(times_GP),0,0,0,0],1,:),[:alg,:nSamples,:time,:epsilon,:n_step,:n_adapt,:accept])
-        @tagsave(datadir("part_1",string(likelihood),savename("GP",params_samp,"bson")), @dict chains infos)
-        push!(all_chains,chains)
-        push!(times,times_GP)
-    end
     return all_chains,times
 end
 
-# chains, times = sample_exp()
+# Run over the set of dictionnaries
 map(sample_exp,dictlistsamp)
+
+# Run over one dictionary
+sample_exp()

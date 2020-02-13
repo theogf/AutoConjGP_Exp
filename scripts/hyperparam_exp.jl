@@ -7,28 +7,31 @@ using PyCall
 using StatsFuns, SpecialFunctions
 gpflow = pyimport("gpflow")
 tf = pyimport("tensorflow")
+## Create a default dictionary of parameters to go use
 defaultdicthp = Dict(:nIterA=>30,:nIterVI=>100,
                     :file_name=>"housing",:kernel=>RBFKernel,
                     :likelihood=>:Matern32,:AVI=>true,:VI=>true,:l=>1.0,:v=>10.0)
-nGrid = 500
-list_l = 10.0.^(range(-2,2,length=nGrid))
-list_v = [0.01,0.1,1.0,10.0]
+
+nGrid = 500 # Number of hyperparameters to train
+list_l = 10.0.^(range(-2,2,length=nGrid)) # Create a log scale grid for the lengthscale
+list_v = [0.01,0.1,1.0,10.0] # Create a simple log scale grid for the variance
 alldicthp = Dict(:nIterA=>30,:nIterVI=>100,
-                    :file_name=>"housing",:kernel=>RBFKernel,
+                    :file_name=>"housing",:kernel=>sqexponentialkernel,
                     :likelihood=>:Matern32,
                     :AVI=>true,:VI=>true,:l=>list_l,:v=>list_v)
 listdict_hp = dict_list(alldicthp)
 problem_type = Dict("covtype"=>:classification,"heart"=>:classification,"HIGGS"=>:classification,"SUSY"=>:classification,"CASP"=>:regression,"housing"=>:regression)
+## Give mapping of the likelihood for the different techniques
 like2like = Dict(:Matern32=>(GenMatern32Likelihood(),py"Matern32()"),:Laplace=>(GenLaplaceLikelihood(),py"Laplace()"),:StudentT=>(GenStudentTLikelihood(),py"gpflow.likelihoods.StudentT()"),:Logistic=>(GenLogisticLikelihood(),py"BernoulliLogit()"))
 
 
 ##
 function run_vi_exp_hp(dict::Dict=defaultdicthp)
     # Parameters and data
-    nIterA = dict[:nIterA];
-    nIterVI = dict[:nIterVI];
-    file_name = dict[:file_name];
-    problem=  problem_type[file_name]
+    nIterA = dict[:nIterA] # Number of iterations for the augmented model
+    nIterVI = dict[:nIterVI] # Number of iterations for the vi model
+    file_name = dict[:file_name] # Name of the dataset
+    problem = problem_type[file_name]
     base_file = datadir("datasets",string(problem),"small",file_name)
     ## Load and preprocess the data
     data = isfile(base_file*".h5") ? h5read(base_file*".h5","data") : Matrix(CSV.read(base_file*".csv",header=false))
@@ -42,18 +45,16 @@ function run_vi_exp_hp(dict::Dict=defaultdicthp)
     l = dict[:l]
     v = dict[:v]
     flowkernel = gpflow.kernels.RBF(nDim,lengthscales=l,variance=v,ARD=false)
-    ker = ktype(l,variance=v)
+    ker = v*ktype(l)
     likelihood = dict[:likelihood]
     ll,flowll = like2like[likelihood]
-    kfold = 3
-    nfold = 1
-    doAVI = dict[:AVI]
-    doVI = dict[:VI]
+    kfold = 10 # Number of fold over the dataset
+    nfold = kfold #Limit the number of k fold runs
+    doAVI = dict[:AVI] # Flag for augmented model
+    doVI = dict[:VI] # Flag for vi model
     predic_results = DataFrame()
-    global latent_results = DataFrame()
+    latent_results = DataFrame()
     i = 1
-    X_train = X_test = X
-    y_train = y_test = y
     elbo_a = 0.0; elbo_vi = 0.0
     metric_a = 0.0; metric_vi = 0.0
     nll_a = 0.0; nll_vi = 0.0
@@ -61,7 +62,7 @@ function run_vi_exp_hp(dict::Dict=defaultdicthp)
         # Computing truth
         @info "Using l=$l and v=$v, X_train:$(size(X))"
         predic_results = hcat(predic_results,DataFrame([y_test],[:y_test]))
-        global save_y_train = copy(y_train)
+        global save_y_train = copy(y_train) # save training outputs
         # Computing the augmented model
         if doAVI
             @info "Starting training of augmented model";
@@ -77,9 +78,7 @@ function run_vi_exp_hp(dict::Dict=defaultdicthp)
         if doVI
             try
                 @info "Starting training of classical model";
-                # vimodel = VGP(X_train,y_tr/ain,ker,ll,QuadratureVI(),verbose=2,optimizer=false)
-                # train!(vimodel,iterations=nIterVI)
-                global vimodel = gpflow.models.VGP(X_train,y_train,kern=flowkernel,likelihood=flowll,num_latent=1)
+                vimodel = gpflow.models.VGP(X_train,y_train,kern=flowkernel,likelihood=flowll,num_latent=1)
                 run_nat_grads_with_adam(vimodel,nIterVI,X_test,y_test,[],Stochastic=false)
                 y_vi,sig_vi = proba_y(vimodel,X_test)
                 sess = vimodel.enquire_session();
@@ -110,5 +109,9 @@ function run_vi_exp_hp(dict::Dict=defaultdicthp)
     )
     return predic_results, latent_results, analysis_results
 end
-# _,lat,res = run_vi_exp_hp()
+
+## Run this to experiment over a list of dictionaries
 map(run_vi_exp_hp,listdict_hp)
+
+## Run this to experiment over the default dictionary
+_,lat,res = run_vi_exp_hp()

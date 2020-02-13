@@ -5,7 +5,6 @@ using CSV, AugmentedGaussianProcesses
 using PyCall
 gpflow = pyimport("gpflow")
 tf = pyimport("tensorflow")
-@show f = ARGS[1]
 try
     dict = load(f)
     # dict = Dict(:time_max=>1e4,:conv_max=>200,:file_name=>"covtype",
@@ -18,7 +17,7 @@ try
     global likelihood2problem = Dict("BernoulliLogit"=>:classification,"Matern32"=>:regression,"Matern32"=>:regression,"StudentT"=>:regression,"Laplace"=>:regression)
     likelihood_CAVI = Dict(:Logistic=>LogisticLikelihood(),:Matern32=>GenMatern32Likelihood(),
         :Laplace=>LaplaceLikelihood(),:StudentT=>StudentTLikelihood(3.0))
-    global iter_points= vcat(1:9,10:5:99,100:50:999,1e3:200:(1e4-1),1e4:1000:1e5)
+    global iter_points= vcat(1:9,10:5:99,100:50:999,1e3:200:(1e4-1),1e4:1000:1e5) # Iterations where convergence is checked
     file_name = dict[:file_name]
     problem = problem_type[file_name]
     base_file = datadir("datasets",string(problem),"large",file_name)

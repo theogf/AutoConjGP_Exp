@@ -1,6 +1,6 @@
 using Distributions, Random, Statistics
 using Random: seed!
-using DelimitedFiles, HDF5, BSON, Juno
+using DelimitedFiles, HDF5, BSON
 using MLDataUtils
 using PyCall
 using DataFrames

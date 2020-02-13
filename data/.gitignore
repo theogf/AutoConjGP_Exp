@@ -2,7 +2,8 @@ exp_pro
 sims
 hp_search
 exp_raw
-datasets
+datasets/classification/large/
+datasets/regression/large/
 part_1
 part_2
 part_3
