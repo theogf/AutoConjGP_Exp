@@ -92,9 +92,8 @@ function sample_exp(dict=defaultdictsamp)
         y_turing = copy(y)
         y_gp = copy(y)
     end
-
     # Create a kernel and the kernel matrix with the cholesky decomposition
-    kernel = sqexponentialkernel(1/l)
+    kernel = transform(SqExponentialKernel(),1/l)
     K = AugmentedGaussianProcesses.kernelmatrix(X,kernel)+1e-4*I
     L = Matrix(cholesky(K).L)
     burnin=1
