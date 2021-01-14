@@ -29,7 +29,7 @@ function LogisticNLL(y_pred::AbstractVector,y_test::AbstractVector)
 end
 
 function nll(ll::Likelihood,y_test::AbstractVector,y_pred::AbstractVector,sig_pred::AbstractVector)
-    mean(AugmentedGaussianProcesses.logpdf.(ll,y_test,y_pred))
+    mean(loglikelihood.(ll,y_test,y_pred))
 end
 
 function JSGP(mu,sig,f,sig_f)

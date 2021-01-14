@@ -1,8 +1,8 @@
 using DrWatson
 @quickactivate
 include(srcdir("intro.jl"))
-using AugmentedGaussianProcesses
-using MLDataUtils, DelimitedFiles
+using AugmentedGaussianProcesses, KernelFunctions
+using MLDataUtils, DelimitedFiles, DataFrames, CSV
 using PyCall
 using StatsFuns, SpecialFunctions
 gpflow = pyimport("gpflow")
@@ -27,7 +27,7 @@ alldicthp = Dict(
     :nIterA => 30,
     :nIterVI => 100,
     :file_name => "housing",
-    :kernel => sqexponentialkernel,
+    :kernel => SqExponentialKernel,
     :likelihood => :Matern32,
     :AVI => true,
     :VI => true,
@@ -63,7 +63,7 @@ function run_vi_exp_hp(dict::Dict = defaultdicthp)
     ## Load and preprocess the data
     data =
         isfile(base_file * ".h5") ? h5read(base_file * ".h5", "data") :
-        Matrix(CSV.read(base_file * ".csv", header = false))
+        Matrix(CSV.read(base_file * ".csv", DataFrame, header = false))
     y = data[:, 1]
     X = data[:, 2:end]
     (N, nDim) = size(X)
@@ -76,15 +76,15 @@ function run_vi_exp_hp(dict::Dict = defaultdicthp)
     l = dict[:l]
     v = dict[:v]
     flowkernel = gpflow.kernels.RBF(nDim, lengthscales = l, variance = v, ARD = false)
-    ker = v * ktype(l)
+    ker = v * KernelFunctions.transform(ktype(), l)
     likelihood = dict[:likelihood]
     ll, flowll = like2like[likelihood]
     kfold = 10 # Number of fold over the dataset
     nfold = kfold #Limit the number of k fold runs
     doAVI = dict[:AVI] # Flag for augmented model
     doVI = dict[:VI] # Flag for vi model
-    predic_results = DataFrame()
-    latent_results = DataFrame()
+    predic_results = DataFrame[]
+    latent_results = DataFrame[]
     i = 1
     elbo_a = 0.0
     elbo_vi = 0.0
@@ -92,23 +92,19 @@ function run_vi_exp_hp(dict::Dict = defaultdicthp)
     metric_vi = 0.0
     nll_a = 0.0
     nll_vi = 0.0
-    for ((X_train, y_train), (X_test, y_test)) in kfolds((X, y), obsdim = 1, k = kfold)
+    for ((X_train, y_train), (X_test, y_test)) in kfolds((X, y), obsdim=1, k=kfold)
         # Computing truth
         @info "Using l=$l and v=$v, X_train:$(size(X))"
-        predic_results = hcat(predic_results, DataFrame([y_test], [:y_test]))
-        global save_y_train = copy(y_train) # save training outputs
+        predic_res = DataFrame([y_test], [:y_test])
         # Computing the augmented model
         if doAVI
             @info "Starting training of augmented model"
             global amodel =
-                VGP(X_train, y_train, ker, ll, AnalyticVI(), verbose = 2, optimizer = false)
-            train!(amodel, iterations = nIterA)
+                VGP(X_train, y_train, ker, ll, AnalyticVI(), verbose = 2, optimiser = false)
+            train!(amodel, nIterA)
             y_a, sig_a = proba_y(amodel, X_test)
-            predic_results = hcat(predic_results, DataFrame([y_a, sig_a], [:y_a, :sig_a]))
-            latent_results = hcat(
-                latent_results,
-                DataFrame([amodel.μ[1], diag(amodel.Σ[1])], [:μ_a, :Σ_a]),
-            )
+            predic_res = hcat(predic_res, DataFrame([y_a, sig_a], [:y_a, :sig_a]))
+            latent_res = DataFrame([mean(amodel[1]), var(amodel[1])], [:μ_a, :Σ_a])
             elbo_a = ELBO(amodel)
             metric_a = metric(ll, y_test, y_a, sig_a)
             nll_a = nll(ll, y_test, y_a, sig_a)
@@ -135,10 +131,10 @@ function run_vi_exp_hp(dict::Dict = defaultdicthp)
                 )
                 y_vi, sig_vi = proba_y(vimodel, X_test)
                 sess = vimodel.enquire_session()
-                predic_results =
-                    hcat(predic_results, DataFrame([y_vi, sig_vi], [:y_vi, :sig_vi]))
-                latent_results = hcat(
-                    latent_results,
+                predic_res =
+                    hcat(predic_res, DataFrame([y_vi, sig_vi], [:y_vi, :sig_vi]))
+                latent_res = hcat(
+                    latent_res,
                     DataFrame(
                         [
                             vec(vimodel.q_mu.read_value(sess)),
@@ -166,6 +162,8 @@ function run_vi_exp_hp(dict::Dict = defaultdicthp)
                 end
             end
         end
+        push!(predic_results, predic_res)
+        push!(latent_results, latent_res)
         i += 1
         if i > nfold
             break

@@ -78,9 +78,9 @@ AGP.@augmodel(
     φlogistic,
     ∇φlogistic
 )
-AGP.hessian_log_pdf(::GenLogisticLikelihood{T}, y::Real, f::Real) where {T<:Real} =
+AGP.hessian_loglike(::GenLogisticLikelihood{T}, y::Real, f::Real) where {T<:Real} =
     -exp(y * f) / AGP.logistic(-y * f)^2
-AGP.grad_log_pdf(::GenLogisticLikelihood{T}, y::Real, f::Real) where {T<:Real} =
+AGP.grad_loglike(::GenLogisticLikelihood{T}, y::Real, f::Real) where {T<:Real} =
     y * AGP.logistic(-y * f)
 
 ## Generated Matern32 likelihood
@@ -89,20 +89,20 @@ gmatern32(y) = 0.0
 αmatern32(y) = y^2
 βmatern32(y) = 2 * y
 γmatern32(y) = 1.0
-φmatern32(r) = (1 + sqrt(3 * r)) * exp(-sqrt(3 * r))
-∇φmatern32(r) = -1.5 * exp(-sqrt(3 * r))
+φmatern32(r) = (1 + sqrt.(3 * r)) .* exp.(-sqrt.(3 * r))
+∇φmatern32(r) = -1.5 * exp.(-sqrt.(3 * r))
 llmatern32(y, x) =
     sqrt(3.0) / 4.0 * (1.0 + sqrt(3 * abs2(x - y))) * exp(-sqrt(3 * abs2(x - y)))
 AGP.@augmodel(
     GenMatern32,
     Regression,
-    Cmatern32,
-    gmatern32,
-    αmatern32,
-    βmatern32,
-    γmatern32,
-    φmatern32,
-    ∇φmatern32
+    sqrt(3.0) / 4.0,
+    0.0,
+    y.^2,
+    2 * y,
+    1.0,
+    (1 .+ sqrt.(3 * r)) .* exp.(-sqrt.(3 * r)),
+    -1.5 * exp.(-sqrt.(3 * r))
 )
 Statistics.var(::GenMatern32Likelihood) = 4.0 / 3.0
 
