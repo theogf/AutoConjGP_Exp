@@ -14,6 +14,6 @@ You can then run one of the experiments from the paper:
 
 For the sampling experiment run `include("scripts/sampling_exp.jl")`
 For the hyperparameter experiment run `include("scripts/hyperparam_exp.jl")`
-And for the convergene the code is described in `script/_conv_exp/jl`
+And for the convergene the code is described in `script/_conv_exp.jl`
 
 There is a WIP to create a smart macro to create augmented likelihoods from a formula like `p(y|f,β) = 1/2β * exp(-sqrt(y^2-2*y*f+y^2)/β)`, it should arrive in the next weeks

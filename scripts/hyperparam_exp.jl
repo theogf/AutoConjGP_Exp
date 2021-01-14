@@ -1,6 +1,6 @@
 using DrWatson
-quickactivate(joinpath(@__DIR__, ".."))
-include(joinpath(srcdir("intro.jl")))
+@quickactivate
+include(srcdir("intro.jl"))
 using AugmentedGaussianProcesses
 using MLDataUtils, DelimitedFiles
 using PyCall
